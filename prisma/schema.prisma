@@ -1,0 +1,328 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  TECNICO
+  SEGURIDAD
+  GERENCIA
+  LOGISTICA
+  ADMINISTRACION
+  RECEPTOR
+  ADMIN
+}
+
+enum RequerimientoStatus {
+  BORRADOR
+  CREADO
+  VALIDACION_SEGURIDAD
+  APROBADO_SEGURIDAD
+  RECHAZADO_SEGURIDAD
+  VALIDACION_GERENCIA
+  APROBADO_GERENCIA
+  RECHAZADO_GERENCIA
+  REVISION_LOGISTICA
+  EN_COMPRA
+  APROBADO_ADM
+  RECHAZADO_ADM
+  LISTO_DESPACHO
+  ENVIADO
+  ENTREGADO_PARCIAL
+  ENTREGADO
+}
+
+enum LoteStatus {
+  PENDIENTE
+  PREPARANDO
+  DESPACHADO
+  EN_TRANSITO
+  ENTREGADO
+}
+
+enum NotificationType {
+  REQUERIMIENTO_CREADO
+  APROBACION_PENDIENTE
+  ESTADO_CAMBIO
+  RECHAZADO
+  LISTO_DESPACHO
+  ENTREGADO
+}
+
+// ============================================================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  nombre    String
+  rol       UserRole
+  activo    Boolean  @default(true)
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  requerimientos      Requerimiento[]    @relation("Solicitante")
+  historialEstados    HistorialEstado[]
+  modificacionesItems ModificacionItem[]
+  notificaciones      Notificacion[]
+  lotesRecibidos      Lote[]             @relation("Receptor")
+
+  @@map("users")
+}
+
+// ============================================================================
+// CATÁLOGOS
+// ============================================================================
+
+model Operacion {
+  id     String  @id @default(cuid())
+  nombre String
+  codigo String  @unique
+  activo Boolean @default(true)
+
+  // Relaciones
+  requerimientos Requerimiento[]
+
+  @@map("operaciones")
+}
+
+model CentroCosto {
+  id     String  @id @default(cuid())
+  nombre String
+  codigo String  @unique
+  activo Boolean @default(true)
+
+  // Relaciones
+  requerimientos Requerimiento[]
+
+  @@map("centros_costo")
+}
+
+model Categoria {
+  id     String  @id @default(cuid())
+  nombre String  @unique
+  activo Boolean @default(true)
+
+  // Relaciones
+  productos          Producto[]
+  requerimientoItems RequerimientoItem[]
+
+  @@map("categorias")
+}
+
+model UnidadMedida {
+  id          String  @id @default(cuid())
+  nombre      String
+  abreviatura String  @unique
+  activo      Boolean @default(true)
+
+  // Relaciones
+  productos          Producto[]
+  requerimientoItems RequerimientoItem[]
+
+  @@map("unidades_medida")
+}
+
+model Producto {
+  id          String  @id @default(cuid())
+  numeroParte String? @unique
+  descripcion String
+  marca       String?
+  modelo      String?
+  activo      Boolean @default(true)
+
+  // Relaciones
+  categoriaId    String
+  categoria      Categoria    @relation(fields: [categoriaId], references: [id])
+  unidadMedidaId String
+  unidadMedida   UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
+
+  requerimientoItems RequerimientoItem[]
+
+  @@map("productos")
+}
+
+// ============================================================================
+// REQUERIMIENTOS
+// ============================================================================
+
+model Requerimiento {
+  id          String              @id @default(cuid())
+  numero      String              @unique // REQ-2024-0001
+  fecha       DateTime            @default(now())
+  motivo      String
+  comentarios String?
+  estado      RequerimientoStatus @default(BORRADOR)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  // Relaciones
+  solicitanteId String
+  solicitante   User        @relation("Solicitante", fields: [solicitanteId], references: [id])
+  operacionId   String
+  operacion     Operacion   @relation(fields: [operacionId], references: [id])
+  centroCostoId String
+  centroCosto   CentroCosto @relation(fields: [centroCostoId], references: [id])
+
+  items            RequerimientoItem[]
+  historialEstados HistorialEstado[]
+  lotes            Lote[]
+  notificaciones   Notificacion[]
+
+  @@index([estado])
+  @@index([solicitanteId])
+  @@index([fecha])
+  @@map("requerimientos")
+}
+
+model RequerimientoItem {
+  id                  String    @id @default(cuid())
+  numeroParte         String?
+  descripcion         String
+  marca               String?
+  modelo              String?
+  cantidadSolicitada  Int
+  cantidadAprobada    Int?
+  serial              String?
+  enStock             Boolean?
+  requiereCompra      Boolean?
+  motivoStock         String? // Motivo del marcado de stock/compra
+  fechaEstimadaCompra DateTime?
+  eliminado           Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relaciones
+  requerimientoId String
+  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  categoriaId     String
+  categoria       Categoria     @relation(fields: [categoriaId], references: [id])
+  unidadMedidaId  String
+  unidadMedida    UnidadMedida  @relation(fields: [unidadMedidaId], references: [id])
+  productoId      String? // Opcional, si viene del catálogo
+  producto        Producto?     @relation(fields: [productoId], references: [id])
+
+  modificaciones ModificacionItem[]
+  loteItems      LoteItem[]
+
+  @@index([requerimientoId])
+  @@map("requerimiento_items")
+}
+
+// ============================================================================
+// ENTREGAS Y LOTES
+// ============================================================================
+
+model Lote {
+  id                  String     @id @default(cuid())
+  numero              Int // Lote 1, 2, 3...
+  estado              LoteStatus @default(PENDIENTE)
+  fechaDespacho       DateTime?
+  fechaEntrega        DateTime?
+  transportista       String?
+  destino             String?
+  confirmadoRecepcion Boolean    @default(false)
+  observaciones       String?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  // Relaciones
+  requerimientoId String
+  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  receptorId      String?
+  receptor        User?         @relation("Receptor", fields: [receptorId], references: [id])
+
+  items LoteItem[]
+
+  @@unique([requerimientoId, numero])
+  @@map("lotes")
+}
+
+model LoteItem {
+  id               String @id @default(cuid())
+  cantidadEnviada  Int
+  cantidadRecibida Int?
+
+  // Relaciones
+  loteId              String
+  lote                Lote              @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  requerimientoItemId String
+  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
+
+  @@unique([loteId, requerimientoItemId])
+  @@map("lote_items")
+}
+
+// ============================================================================
+// AUDITORÍA
+// ============================================================================
+
+model HistorialEstado {
+  id             String               @id @default(cuid())
+  estadoAnterior RequerimientoStatus?
+  estadoNuevo    RequerimientoStatus
+  comentario     String? // Obligatorio en rechazos
+  createdAt      DateTime             @default(now())
+
+  // Relaciones
+  requerimientoId String
+  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  usuarioId       String
+  usuario         User          @relation(fields: [usuarioId], references: [id])
+
+  @@index([requerimientoId])
+  @@map("historial_estados")
+}
+
+model ModificacionItem {
+  id            String   @id @default(cuid())
+  campo         String // cantidad, eliminado, etc.
+  valorAnterior String
+  valorNuevo    String
+  motivo        String?
+  createdAt     DateTime @default(now())
+
+  // Relaciones
+  requerimientoItemId String
+  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
+  usuarioId           String
+  usuario             User              @relation(fields: [usuarioId], references: [id])
+
+  @@map("modificaciones_items")
+}
+
+// ============================================================================
+// NOTIFICACIONES
+// ============================================================================
+
+model Notificacion {
+  id        String           @id @default(cuid())
+  tipo      NotificationType
+  titulo    String
+  mensaje   String
+  leida     Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // Relaciones
+  usuarioId       String
+  usuario         User           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  requerimientoId String?
+  requerimiento   Requerimiento? @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, leida])
+  @@map("notificaciones")
+}
