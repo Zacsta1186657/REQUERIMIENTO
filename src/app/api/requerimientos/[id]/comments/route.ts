@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import {
   unauthorizedResponse,
+  forbiddenResponse,
   notFoundResponse,
   errorResponse,
   serverErrorResponse,
@@ -21,11 +22,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const requerimiento = await prisma.requerimiento.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, solicitanteId: true },
     });
 
     if (!requerimiento) {
       return notFoundResponse('Requerimiento no encontrado');
+    }
+
+    // TECNICO can only see comments of their own requirements
+    if (user.rol === 'TECNICO' && requerimiento.solicitanteId !== user.id) {
+      return forbiddenResponse('No tienes permiso para ver este requerimiento');
     }
 
     // Get all history entries that have comments
@@ -74,11 +80,16 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const requerimiento = await prisma.requerimiento.findUnique({
       where: { id },
-      select: { id: true, estado: true },
+      select: { id: true, estado: true, solicitanteId: true },
     });
 
     if (!requerimiento) {
       return notFoundResponse('Requerimiento no encontrado');
+    }
+
+    // TECNICO can only comment on their own requirements
+    if (user.rol === 'TECNICO' && requerimiento.solicitanteId !== user.id) {
+      return forbiddenResponse('No tienes permiso para comentar en este requerimiento');
     }
 
     // Create a history entry just for the comment (no status change)

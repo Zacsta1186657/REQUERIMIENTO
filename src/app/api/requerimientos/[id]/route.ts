@@ -71,15 +71,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Check if user can view this requirement
     const isOwner = requerimiento.solicitanteId === user.id;
+
+    // TECNICO can only see their own requirements
+    if (user.rol === 'TECNICO' && !isOwner) {
+      return forbiddenResponse('No tienes permiso para ver este requerimiento');
+    }
+
     const permissions = getPermissions(
       requerimiento.estado as RequerimientoStatus,
       user.rol as UserRole,
       isOwner
     );
-
-    if (!permissions.canView && user.rol !== 'ADMIN' && !isOwner) {
-      return forbiddenResponse('No tienes permiso para ver este requerimiento');
-    }
 
     return NextResponse.json({ ...requerimiento, permissions });
   } catch (error) {

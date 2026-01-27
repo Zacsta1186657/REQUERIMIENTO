@@ -36,30 +36,35 @@ const menuItems = [
     url: "/",
     icon: LayoutDashboard,
     adminOnly: false,
+    excludeRoles: [] as UserRole[],
   },
   {
     title: "Requerimientos",
     url: "/requerimientos",
     icon: ClipboardList,
     adminOnly: false,
+    excludeRoles: [] as UserRole[],
   },
   {
     title: "Aprobaciones",
     url: "/aprobaciones",
     icon: CheckSquare,
     adminOnly: false,
+    excludeRoles: ["TECNICO"] as UserRole[],
   },
   {
     title: "Usuarios",
     url: "/usuarios",
     icon: Users,
     adminOnly: true,
+    excludeRoles: [] as UserRole[],
   },
   {
     title: "Configuración",
     url: "/configuracion",
     icon: Settings,
     adminOnly: false,
+    excludeRoles: [] as UserRole[],
   },
 ];
 
@@ -81,9 +86,17 @@ export function AppSidebar() {
   };
 
   // Filter menu items based on user role
-  const visibleMenuItems = menuItems.filter(
-    (item) => !item.adminOnly || isAdmin
-  );
+  const visibleMenuItems = menuItems.filter((item) => {
+    // Check if user role is excluded from this menu item
+    if (user && item.excludeRoles.includes(user.rol)) {
+      return false;
+    }
+    // Check admin-only items
+    if (item.adminOnly && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
 
   const userInitials = user?.nombre
     .split(" ")

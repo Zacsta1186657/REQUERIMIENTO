@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/auth';
 import {
   unauthorizedResponse,
+  forbiddenResponse,
   notFoundResponse,
   serverErrorResponse,
 } from '@/lib/api-utils';
@@ -20,11 +21,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const requerimiento = await prisma.requerimiento.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, solicitanteId: true },
     });
 
     if (!requerimiento) {
       return notFoundResponse('Requerimiento no encontrado');
+    }
+
+    // TECNICO can only see timeline of their own requirements
+    if (user.rol === 'TECNICO' && requerimiento.solicitanteId !== user.id) {
+      return forbiddenResponse('No tienes permiso para ver este requerimiento');
     }
 
     const historial = await prisma.historialEstado.findMany({

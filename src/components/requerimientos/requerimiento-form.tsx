@@ -24,10 +24,20 @@ import { useCatalogosStore } from "@/stores/catalogos-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRequerimientosStore } from "@/stores/requerimientos-store";
 import { FormItem } from "./item-form";
-import { Save, Send, AlertCircle, Loader2 } from "lucide-react";
+import { Send, AlertCircle, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-import { ItemForm } from "./item-form";
+import { useState, useEffect, useRef } from "react";
+import { ItemForm, ItemFormRef } from "./item-form";
 
 interface RequerimientoFormProps {
   requerimientoId?: string;
@@ -40,9 +50,11 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
   const { createRequerimiento, fetchRequerimiento, currentRequerimiento, submitRequerimiento } = useRequerimientosStore();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [items, setItems] = useState<FormItem[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const itemFormRef = useRef<ItemFormRef>(null);
   const [formData, setFormData] = useState({
     operacionId: "",
     centroCostoId: "",
@@ -91,44 +103,89 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
     year: "numeric",
   });
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    setError(null);
+  const validateForm = (itemsToValidate: FormItem[]): boolean => {
+    const errors: Record<string, string> = {};
 
-    try {
-      const result = await createRequerimiento({
-        operacionId: formData.operacionId,
-        centroCostoId: formData.centroCostoId,
-        motivo: formData.motivo,
-        comentarios: formData.comentarios || undefined,
-      });
-
-      if (result) {
-        // Save items
-        for (const item of items) {
-          await fetch(`/api/requerimientos/${result.id}/items`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...item,
-              numeroParte: item.numeroParte || null,
-              marca: item.marca || null,
-              modelo: item.modelo || null,
-              serial: item.serial || null,
-            }),
-          });
-        }
-        router.push(`/requerimientos/${result.id}`);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
-    } finally {
-      setIsSaving(false);
+    if (!formData.operacionId) {
+      errors.operacion = "Debe seleccionar una operación";
     }
+    if (!formData.centroCostoId) {
+      errors.centroCosto = "Debe seleccionar un centro de costo";
+    }
+    if (!formData.motivo.trim()) {
+      errors.motivo = "Debe ingresar el motivo del requerimiento";
+    }
+    if (itemsToValidate.length === 0) {
+      errors.items = "Debe agregar al menos un item al requerimiento";
+    }
+
+    // Validar items
+    const invalidItems = itemsToValidate.filter(item => !item.descripcion.trim() || !item.categoriaId || !item.unidadMedidaId || item.cantidadSolicitada < 1);
+    if (invalidItems.length > 0) {
+      errors.items = "Algunos items tienen datos incompletos (descripción, categoría, unidad o cantidad)";
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitClick = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setFieldErrors({});
+
+    if (itemFormRef.current) {
+      // Limpiar errores previos
+      itemFormRef.current.clearAllErrors();
+
+      // Primero validar los items existentes
+      const { isValid: itemsValid } = itemFormRef.current.validateAllItems();
+
+      if (!itemsValid) {
+        setError("Hay items con campos incompletos. Por favor, complete todos los campos requeridos.");
+        return;
+      }
+
+      // Verificar si hay un item incompleto en la fila de nuevo item
+      if (itemFormRef.current.hasIncompleteData()) {
+        // Mostrar los errores visualmente (bordes rojos)
+        itemFormRef.current.showValidationErrors();
+        setError("Hay un item incompleto en la fila de nuevo item. Complete todos los campos requeridos o elimine los datos parciales antes de enviar.");
+        return;
+      }
+
+      // Si el item pendiente está completo, agregarlo automáticamente
+      const pendingItem = itemFormRef.current.getPendingItem();
+      if (pendingItem) {
+        const newItem: FormItem = {
+          ...pendingItem,
+          id: `temp-${Date.now()}`,
+        };
+        const finalItems = [...items, newItem];
+        setItems(finalItems);
+        // Limpiar el item pendiente después de agregarlo
+        itemFormRef.current.clearPendingItem();
+
+        if (!validateForm(finalItems)) {
+          setError("Por favor, corrija los errores en el formulario");
+          return;
+        }
+
+        setShowConfirmDialog(true);
+        return;
+      }
+    }
+
+    if (!validateForm(items)) {
+      setError("Por favor, corrija los errores en el formulario");
+      return;
+    }
+
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    setShowConfirmDialog(false);
     setIsSubmitting(true);
     setError(null);
 
@@ -183,11 +240,25 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+    <form onSubmit={handleSubmitClick} className="space-y-6">
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {Object.keys(fieldErrors).length > 0 && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <ul className="list-disc list-inside">
+              {Object.values(fieldErrors).map((err, idx) => (
+                <li key={idx}>{err}</li>
+              ))}
+            </ul>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -261,32 +332,18 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
 
           <Separator />
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="motivo">Motivo del Requerimiento *</Label>
-              <Textarea
-                id="motivo"
-                placeholder="Describa el motivo del requerimiento..."
-                value={formData.motivo}
-                onChange={(e) =>
-                  setFormData({ ...formData, motivo: e.target.value })
-                }
-                required
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="comentarios">Comentarios Adicionales</Label>
-              <Textarea
-                id="comentarios"
-                placeholder="Comentarios opcionales..."
-                value={formData.comentarios}
-                onChange={(e) =>
-                  setFormData({ ...formData, comentarios: e.target.value })
-                }
-                rows={3}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="motivo">Motivo del Requerimiento *</Label>
+            <Textarea
+              id="motivo"
+              placeholder="Describa el motivo del requerimiento..."
+              value={formData.motivo}
+              onChange={(e) =>
+                setFormData({ ...formData, motivo: e.target.value })
+              }
+              required
+              rows={3}
+            />
           </div>
         </CardContent>
       </Card>
@@ -301,7 +358,7 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ItemForm items={items} onChange={setItems} />
+          <ItemForm ref={itemFormRef} items={items} onChange={setItems} />
         </CardContent>
       </Card>
 
@@ -310,34 +367,16 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
         <Button
           type="button"
           variant="outline"
+          className="cursor-pointer"
           onClick={() => router.push("/requerimientos")}
-          disabled={isSubmitting || isSaving}
+          disabled={isSubmitting}
         >
           Cancelar
         </Button>
         <Button
-          type="button"
-          variant="secondary"
-          onClick={handleSaveDraft}
-          disabled={isSubmitting || isSaving || !formData.operacionId || !formData.centroCostoId || !formData.motivo}
-        >
-          {isSaving ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4 mr-2" />
-          )}
-          Guardar Borrador
-        </Button>
-        <Button
           type="submit"
-          disabled={
-            isSubmitting ||
-            isSaving ||
-            !formData.operacionId ||
-            !formData.centroCostoId ||
-            !formData.motivo ||
-            items.length === 0
-          }
+          className="cursor-pointer"
+          disabled={isSubmitting}
         >
           {isSubmitting ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -348,5 +387,23 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
         </Button>
       </div>
     </form>
+
+    <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirmar envío</AlertDialogTitle>
+          <AlertDialogDescription>
+            ¿Está seguro que desea enviar este requerimiento? Una vez enviado, no podrá modificarlo.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="cursor-pointer">Cancelar</AlertDialogCancel>
+          <AlertDialogAction className="cursor-pointer" onClick={handleConfirmSubmit}>
+            Confirmar
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

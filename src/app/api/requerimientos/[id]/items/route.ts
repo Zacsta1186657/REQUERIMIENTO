@@ -32,6 +32,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
+    // TECNICO can only see items of their own requirements
+    if (user.rol === 'TECNICO' && requerimiento.solicitanteId !== user.id) {
+      return forbiddenResponse('No tienes permiso para ver este requerimiento');
+    }
+
     const items = await prisma.requerimientoItem.findMany({
       where: {
         requerimientoId: id,
@@ -68,8 +73,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    // Check permissions
+    // TECNICO can only add items to their own requirements
     const isOwner = requerimiento.solicitanteId === user.id;
+    if (user.rol === 'TECNICO' && !isOwner) {
+      return forbiddenResponse('No tienes permiso para modificar este requerimiento');
+    }
+
+    // Check permissions
     const permissions = getPermissions(
       requerimiento.estado as RequerimientoStatus,
       user.rol as UserRole,
