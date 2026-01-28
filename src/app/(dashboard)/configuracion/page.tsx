@@ -36,6 +36,12 @@ export default function ConfiguracionPage() {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Fix hydration mismatch with Radix UI Select
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [profileData, setProfileData] = useState({
     nombre: "",
@@ -249,16 +255,20 @@ export default function ConfiguracionPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="theme">Tema</Label>
-            <Select value={theme} onValueChange={setTheme}>
-              <SelectTrigger id="theme" className="w-[200px]">
-                <SelectValue placeholder="Selecciona un tema" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Claro</SelectItem>
-                <SelectItem value="dark">Oscuro</SelectItem>
-                <SelectItem value="system">Sistema</SelectItem>
-              </SelectContent>
-            </Select>
+            {mounted ? (
+              <Select value={theme} onValueChange={setTheme}>
+                <SelectTrigger id="theme" className="w-[200px]">
+                  <SelectValue placeholder="Selecciona un tema" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Claro</SelectItem>
+                  <SelectItem value="dark">Oscuro</SelectItem>
+                  <SelectItem value="system">Sistema</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Skeleton className="h-10 w-[200px]" />
+            )}
             <p className="text-xs text-muted-foreground">
               Selecciona el tema de color para la interfaz
             </p>

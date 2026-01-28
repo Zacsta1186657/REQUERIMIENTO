@@ -27,8 +27,13 @@ import {
   CheckCircle,
   Truck,
   Save,
+  Upload,
+  FileText,
+  X,
+  Paperclip,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
+import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE, formatFileSize } from "@/lib/file-constants";
 
 interface Item {
   id: string;
@@ -59,6 +64,21 @@ interface ItemStockStatus {
   fechaEstimadaCompra: string;
 }
 
+interface FileToUpload {
+  file: File;
+  tipo: string;
+  descripcion: string;
+}
+
+const TIPO_ARCHIVO_OPTIONS = [
+  { value: "FACTURA", label: "Factura" },
+  { value: "GUIA_REMISION", label: "Guía de Remisión" },
+  { value: "ORDEN_COMPRA", label: "Orden de Compra" },
+  { value: "COTIZACION", label: "Cotización" },
+  { value: "DOCUMENTO_GENERAL", label: "Documento General" },
+  { value: "OTRO", label: "Otro" },
+];
+
 export function LogisticaPanel({
   requerimientoId,
   items,
@@ -82,6 +102,106 @@ export function LogisticaPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // File upload state
+  const [filesToUpload, setFilesToUpload] = useState<FileToUpload[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+
+    const validFiles: FileToUpload[] = [];
+    const errors: string[] = [];
+
+    Array.from(files).forEach((file) => {
+      const extension = file.name.split(".").pop()?.toLowerCase() || "";
+
+      if (!ALLOWED_EXTENSIONS.includes(extension)) {
+        errors.push(`${file.name}: Tipo de archivo no permitido`);
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: Archivo muy grande (máx. ${formatFileSize(MAX_FILE_SIZE)})`);
+        return;
+      }
+
+      validFiles.push({
+        file,
+        tipo: "DOCUMENTO_GENERAL",
+        descripcion: "",
+      });
+    });
+
+    if (errors.length > 0) {
+      setError(errors.join(". "));
+    }
+
+    setFilesToUpload((prev) => [...prev, ...validFiles]);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileSelect(e.dataTransfer.files);
+  }, [handleFileSelect]);
+
+  const removeFile = (index: number) => {
+    setFilesToUpload((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateFileType = (index: number, tipo: string) => {
+    setFilesToUpload((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, tipo } : f))
+    );
+  };
+
+  const updateFileDescription = (index: number, descripcion: string) => {
+    setFilesToUpload((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, descripcion } : f))
+    );
+  };
+
+  const uploadFiles = async (): Promise<boolean> => {
+    if (filesToUpload.length === 0) return true;
+
+    try {
+      for (const fileData of filesToUpload) {
+        const formData = new FormData();
+        formData.append("file", fileData.file);
+        formData.append("tipo", fileData.tipo);
+        formData.append("requerimientoId", requerimientoId);
+        if (fileData.descripcion) {
+          formData.append("descripcion", fileData.descripcion);
+        }
+
+        const response = await fetch("/api/archivos", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Error al subir archivo");
+        }
+      }
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al subir archivos");
+      return false;
+    }
+  };
 
   const handleStockChange = (itemId: string, field: keyof ItemStockStatus, value: boolean | number | string) => {
     setStockStatus((prev) => ({
@@ -160,6 +280,13 @@ export function LogisticaPanel({
       // Primero guardar todos los items
       await handleSaveAll();
 
+      // Subir archivos si hay
+      const filesUploaded = await uploadFiles();
+      if (!filesUploaded) {
+        setIsProcessing(false);
+        return;
+      }
+
       // Luego procesar según la acción
       let nextStatus = "";
       if (action === "stock") {
@@ -179,6 +306,7 @@ export function LogisticaPanel({
       });
 
       if (response.ok) {
+        setFilesToUpload([]); // Clear uploaded files
         onUpdate();
       } else {
         const data = await response.json();
@@ -356,6 +484,110 @@ export function LogisticaPanel({
               </div>
             );
           })}
+        </div>
+
+        {/* Adjuntar documentos */}
+        <div className="space-y-4 pt-4 border-t">
+          <div className="flex items-center gap-2">
+            <Paperclip className="h-5 w-5 text-blue-600" />
+            <h4 className="font-medium">Adjuntar Documentos</h4>
+            <span className="text-xs text-muted-foreground">(Opcional)</span>
+          </div>
+
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-muted-foreground/25 hover:border-primary/50"
+            }`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+              className="hidden"
+              onChange={(e) => handleFileSelect(e.target.files)}
+            />
+            <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground mb-2">
+              Arrastra archivos aquí o{" "}
+              <button
+                type="button"
+                className="text-primary hover:underline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                selecciona archivos
+              </button>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              PDF, DOC, DOCX, XLS, XLSX, JPG, PNG - Máx. {formatFileSize(MAX_FILE_SIZE)}
+            </p>
+          </div>
+
+          {/* Lista de archivos a subir */}
+          {filesToUpload.length > 0 && (
+            <div className="space-y-3">
+              {filesToUpload.map((fileData, index) => (
+                <div
+                  key={index}
+                  className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/30"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm font-medium truncate max-w-[200px]">
+                        {fileData.file.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        ({formatFileSize(fileData.file.size)})
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeFile(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Tipo de documento</Label>
+                      <Select
+                        value={fileData.tipo}
+                        onValueChange={(value) => updateFileType(index, value)}
+                      >
+                        <SelectTrigger className="h-8 mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {TIPO_ARCHIVO_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Descripción (opcional)</Label>
+                      <Input
+                        className="h-8 mt-1"
+                        placeholder="Descripción del documento..."
+                        value={fileData.descripcion}
+                        onChange={(e) => updateFileDescription(index, e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Acciones */}

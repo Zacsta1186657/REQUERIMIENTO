@@ -42,6 +42,7 @@ export default function RequerimientosPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequerimientoStatus | "ALL">("ALL");
+  const [mounted, setMounted] = useState(false);
 
   const {
     requerimientos,
@@ -50,6 +51,11 @@ export default function RequerimientosPage() {
     fetchRequerimientos,
     setFilters,
   } = useRequerimientosStore();
+
+  // Fix hydration mismatch with Radix UI Select
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleFetch = useCallback(() => {
     const filters: Record<string, string> = {};
@@ -108,22 +114,26 @@ export default function RequerimientosPage() {
           </div>
 
           {/* Status filter */}
-          <Select
-            value={statusFilter}
-            onValueChange={(v) => setStatusFilter(v as RequerimientoStatus | "ALL")}
-          >
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos los estados</SelectItem>
-              {statusOptions.slice(1).map((status) => (
-                <SelectItem key={status} value={status}>
-                  {STATUS_CONFIG[status as RequerimientoStatus].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {mounted ? (
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as RequerimientoStatus | "ALL")}
+            >
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Filtrar por estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Todos los estados</SelectItem>
+                {statusOptions.slice(1).map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {STATUS_CONFIG[status as RequerimientoStatus].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Skeleton className="h-10 w-full sm:w-[200px]" />
+          )}
         </div>
 
         {/* View toggle */}

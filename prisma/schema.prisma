@@ -59,6 +59,15 @@ enum NotificationType {
   ENTREGADO
 }
 
+enum TipoArchivo {
+  FACTURA
+  GUIA_REMISION
+  ORDEN_COMPRA
+  COTIZACION
+  DOCUMENTO_GENERAL
+  OTRO
+}
+
 // ============================================================================
 // USUARIOS Y AUTENTICACIÓN
 // ============================================================================
@@ -80,6 +89,7 @@ model User {
   modificacionesItems ModificacionItem[]
   notificaciones      Notificacion[]
   lotesRecibidos      Lote[]             @relation("Receptor")
+  archivosSubidos     Archivo[]          @relation("ArchivosSubidos")
 
   @@map("users")
 }
@@ -182,6 +192,7 @@ model Requerimiento {
   historialEstados HistorialEstado[]
   lotes            Lote[]
   notificaciones   Notificacion[]
+  archivos         Archivo[]
 
   @@index([estado])
   @@index([solicitanteId])
@@ -325,4 +336,34 @@ model Notificacion {
 
   @@index([usuarioId, leida])
   @@map("notificaciones")
+}
+
+// ============================================================================
+// ARCHIVOS
+// ============================================================================
+
+model Archivo {
+  id               String      @id @default(cuid())
+  nombre           String      // Nombre original del archivo
+  nombreAlmacenado String      @unique // UUID.extension
+  tipo             TipoArchivo
+  mimeType         String      // application/pdf, image/png, etc.
+  tamanio          Int         // Bytes
+  extension        String      // pdf, docx, xlsx, jpg, png
+  ruta             String      // Ruta relativa en uploads/
+  descripcion      String?
+  activo           Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  // Relaciones
+  subidoPorId     String
+  subidoPor       User           @relation("ArchivosSubidos", fields: [subidoPorId], references: [id])
+  requerimientoId String?
+  requerimiento   Requerimiento? @relation(fields: [requerimientoId], references: [id], onDelete: SetNull)
+
+  @@index([requerimientoId])
+  @@index([subidoPorId])
+  @@index([tipo])
+  @@map("archivos")
 }

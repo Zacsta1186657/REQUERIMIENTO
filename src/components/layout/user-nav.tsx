@@ -16,13 +16,15 @@ import { ROLE_LABELS } from "@/types";
 import { LogOut, Settings, User, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function UserNav() {
   const router = useRouter();
   const { user, isLoading, logout, fetchUser } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetchUser();
   }, [fetchUser]);
 
@@ -32,7 +34,8 @@ export function UserNav() {
     router.refresh();
   };
 
-  if (isLoading) {
+  // Show placeholder during SSR to prevent hydration mismatch
+  if (!mounted || isLoading) {
     return (
       <Button variant="ghost" className="relative h-9 w-9 rounded-full" disabled>
         <Loader2 className="h-5 w-5 animate-spin" />

@@ -27,6 +27,7 @@ import { Timeline } from "@/components/requerimientos/timeline";
 import { LogisticaPanel } from "@/components/requerimientos/logistica-panel";
 import { DespachoPanel } from "@/components/requerimientos/despacho-panel";
 import { RecepcionPanel } from "@/components/requerimientos/recepcion-panel";
+import { ArchivosRequerimiento } from "@/components/requerimientos/archivos-requerimiento";
 import { useRequerimientosStore } from "@/stores/requerimientos-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { ROLE_LABELS, UserRole } from "@/types";
@@ -95,7 +96,7 @@ export default function RequerimientoDetailPage() {
 
   useEffect(() => {
     fetchRequerimiento(id);
-    fetchTimeline();
+    /*fetchTimeline();*/
   }, [id, fetchRequerimiento]);
 
   const fetchTimeline = async () => {
@@ -283,13 +284,17 @@ export default function RequerimientoDetailPage() {
       year: "numeric",
     });
   };
+  /*--- AGREGADO PARA QUE SOLO SEGURIDAD Y GESTION PUEDAN EDITAR Y ELIMINAR --- */
+  const allowedRolesForItems = ["SEGURIDAD", "GERENCIA"];
+  const hasRolePermission = allowedRolesForItems.includes(user?.rol || "");
+  /*-------------------------------------------*/
 
   const permissions = requerimiento.permissions;
   const canSubmit = requerimiento.estado === "BORRADOR" && requerimiento.solicitante?.id === user?.id;
   const canApprove = permissions?.canApprove ?? false;
   const canReject = permissions?.canReject ?? false;
-  const canEditItems = permissions?.canEditItems ?? false;
-  const canDeleteItems = permissions?.canDeleteItems ?? false;
+  const canEditItems = (permissions?.canEditItems ?? false) && hasRolePermission;
+  const canDeleteItems = (permissions?.canDeleteItems ?? false) && hasRolePermission;
   const canMarkStock = permissions?.canMarkStock ?? false;
   const canCreateLote = permissions?.canCreateLote ?? false;
   const canDispatch = permissions?.canDispatch ?? false;
@@ -700,6 +705,9 @@ export default function RequerimientoDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Documentos adjuntos */}
+          <ArchivosRequerimiento requerimientoId={id} />
 
           {/* Back button */}
           <Button asChild variant="outline" className="w-full">

@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useId } from "react";
 
 interface Notification {
   id: string;
@@ -49,6 +49,12 @@ export function Header() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Fix hydration mismatch with Radix UI
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -118,75 +124,82 @@ export function Header() {
           </Button>
 
           {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-9 w-9">
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
-                )}
-                <span className="sr-only">Notificaciones</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notificaciones</span>
-                {unreadCount > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto p-0 text-xs text-primary"
-                    onClick={handleMarkAllAsRead}
-                  >
-                    Marcar todas como leídas
-                  </Button>
-                )}
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {isLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="py-4 text-center text-sm text-muted-foreground">
-                  No hay notificaciones
-                </div>
-              ) : (
-                <ScrollArea className="h-64">
-                  {notifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
-                        !notification.leida ? "bg-muted/50" : ""
-                      }`}
-                      onClick={() => handleMarkAsRead(notification.id)}
-                      asChild
+          {mounted ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative h-9 w-9">
+                  <Bell className="h-4 w-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500" />
+                  )}
+                  <span className="sr-only">Notificaciones</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuLabel className="flex items-center justify-between">
+                  <span>Notificaciones</span>
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-xs text-primary"
+                      onClick={handleMarkAllAsRead}
                     >
-                      <Link
-                        href={
-                          notification.requerimiento
-                            ? `/requerimientos/${notification.requerimiento.id}`
-                            : "#"
-                        }
+                      Marcar todas como leídas
+                    </Button>
+                  )}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="py-4 text-center text-sm text-muted-foreground">
+                    No hay notificaciones
+                  </div>
+                ) : (
+                  <ScrollArea className="h-64">
+                    {notifications.map((notification) => (
+                      <DropdownMenuItem
+                        key={notification.id}
+                        className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
+                          !notification.leida ? "bg-muted/50" : ""
+                        }`}
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        asChild
                       >
-                        <span className="text-sm font-medium">{notification.titulo}</span>
-                        <span className="text-xs text-muted-foreground line-clamp-2">
-                          {notification.mensaje}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTimeAgo(notification.createdAt)}
-                        </span>
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
-                </ScrollArea>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-center text-sm text-primary" asChild>
-                <Link href="/notificaciones">Ver todas las notificaciones</Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                        <Link
+                          href={
+                            notification.requerimiento
+                              ? `/requerimientos/${notification.requerimiento.id}`
+                              : "#"
+                          }
+                        >
+                          <span className="text-sm font-medium">{notification.titulo}</span>
+                          <span className="text-xs text-muted-foreground line-clamp-2">
+                            {notification.mensaje}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatTimeAgo(notification.createdAt)}
+                          </span>
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </ScrollArea>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-center text-sm text-primary" asChild>
+                  <Link href="/notificaciones">Ver todas las notificaciones</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button variant="ghost" size="icon" className="relative h-9 w-9">
+              <Bell className="h-4 w-4" />
+              <span className="sr-only">Notificaciones</span>
+            </Button>
+          )}
 
           {/* Theme toggle */}
           <ThemeToggle />

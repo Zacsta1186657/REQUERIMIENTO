@@ -69,6 +69,12 @@ export default function UsuariosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, admins: 0, active: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  // Fix hydration mismatch with Radix UI Select
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -289,23 +295,27 @@ export default function UsuariosPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="rol">Rol</Label>
-                <Select
-                  value={formData.rol}
-                  onValueChange={(v) => setFormData({ ...formData, rol: v as UserRole })}
-                  disabled={isSubmitting}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un rol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableRoles.map((role) => (
-                      <SelectItem key={role} value={role}>
-                        {ROLE_LABELS[role]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {mounted ? (
+                  <Select
+                    value={formData.rol}
+                    onValueChange={(v) => setFormData({ ...formData, rol: v as UserRole })}
+                    disabled={isSubmitting}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {ROLE_LABELS[role]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Skeleton className="h-10 w-full" />
+                )}
               </div>
 
               <div className="space-y-2">
