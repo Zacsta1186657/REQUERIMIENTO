@@ -29,6 +29,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { useAuthStore } from "@/stores/auth-store";
 import { ROLE_LABELS, UserRole } from "@/types";
 import { Plus, Pencil, Trash2, Shield, ShieldAlert, Loader2, AlertCircle } from "lucide-react";
@@ -70,6 +79,9 @@ export default function UsuariosPage() {
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, admins: 0, active: 0 });
   const [mounted, setMounted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
 
   // Fix hydration mismatch with Radix UI Select
   useEffect(() => {
@@ -87,16 +99,23 @@ export default function UsuariosPage() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch("/api/users?limit=100");
+      const response = await fetch(`/api/users?page=${currentPage}&limit=${itemsPerPage}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data.data || []);
-        const userList = data.data || [];
-        setStats({
-          total: userList.length,
-          admins: userList.filter((u: User) => ADMIN_ROLES.includes(u.rol)).length,
-          active: userList.filter((u: User) => u.activo).length,
-        });
+        setTotalPages(data.pagination?.totalPages || 1);
+
+        // Fetch all users for stats
+        const statsResponse = await fetch("/api/users?limit=1000");
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          const userList = statsData.data || [];
+          setStats({
+            total: userList.length,
+            admins: userList.filter((u: User) => ADMIN_ROLES.includes(u.rol)).length,
+            active: userList.filter((u: User) => u.activo).length,
+          });
+        }
       } else if (response.status === 403) {
         // Not authorized
       }
@@ -109,7 +128,7 @@ export default function UsuariosPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [currentPage]);
 
   // Check if current user has admin privileges
   const isAdmin = currentUser && ADMIN_ROLES.includes(currentUser.rol);
@@ -490,6 +509,55 @@ export default function UsuariosPage() {
               </TableBody>
             </Table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="mt-4">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                    if (
+                      page === 1 ||
+                      page === totalPages ||
+                      (page >= currentPage - 1 && page <= currentPage + 1)
+                    ) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (page === currentPage - 2 || page === currentPage + 2) {
+                      return (
+                        <PaginationItem key={page}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

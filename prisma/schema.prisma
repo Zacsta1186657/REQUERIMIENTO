@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,9 +6,270 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================================================
-// ENUMS
-// ============================================================================
+model User {
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  password            String
+  nombre              String
+  rol                 UserRole
+  activo              Boolean            @default(true)
+  avatar              String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  archivosSubidos     Archivo[]          @relation("ArchivosSubidos")
+  historialEstados    HistorialEstado[]
+  lotesRecibidos      Lote[]             @relation("Receptor")
+  modificacionesItems ModificacionItem[]
+  notificaciones      Notificacion[]
+  requerimientos      Requerimiento[]    @relation("Solicitante")
+
+  @@map("users")
+}
+
+model Operacion {
+  id             String          @id @default(cuid())
+  nombre         String
+  codigo         String          @unique
+  activo         Boolean         @default(true)
+  requerimientos Requerimiento[]
+
+  @@map("operaciones")
+}
+
+model CentroCosto {
+  id             String          @id @default(cuid())
+  nombre         String
+  codigo         String          @unique
+  activo         Boolean         @default(true)
+  requerimientos Requerimiento[]
+
+  @@map("centros_costo")
+}
+
+model Categoria {
+  id                 String              @id @default(cuid())
+  nombre             String              @unique
+  activo             Boolean             @default(true)
+  productos          Producto[]
+  requerimientoItems RequerimientoItem[]
+
+  @@map("categorias")
+}
+
+model UnidadMedida {
+  id                 String              @id @default(cuid())
+  nombre             String
+  abreviatura        String              @unique
+  activo             Boolean             @default(true)
+  requerimientoItems RequerimientoItem[]
+
+  @@map("unidades_medida")
+}
+
+model Marca {
+  id        String     @id @default(cuid())
+  nombre    String     @unique
+  activo    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  modelos   Modelo[]
+  productos Producto[]
+
+  @@map("marcas")
+}
+
+model Modelo {
+  id        String     @id @default(cuid())
+  nombre    String
+  marcaId   String
+  activo    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  marca     Marca      @relation(fields: [marcaId], references: [id])
+  productos Producto[]
+
+  @@unique([marcaId, nombre])
+  @@map("modelos")
+}
+
+model Producto {
+  id                 String              @id @default(cuid())
+  numeroParte        String?             @unique
+  descripcion        String
+  activo             Boolean             @default(true)
+  categoriaId        String
+  marcaId            String
+  modeloId           String
+  categoria          Categoria           @relation(fields: [categoriaId], references: [id])
+  marca              Marca               @relation(fields: [marcaId], references: [id])
+  modelo             Modelo              @relation(fields: [modeloId], references: [id])
+  requerimientoItems RequerimientoItem[]
+
+  @@map("productos")
+}
+
+model Requerimiento {
+  id               String              @id @default(cuid())
+  numero           String              @unique
+  fecha            DateTime            @default(now())
+  motivo           String
+  comentarios      String?
+  estado           RequerimientoStatus @default(BORRADOR)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  solicitanteId    String
+  operacionId      String
+  centroCostoId    String
+  archivos         Archivo[]
+  historialEstados HistorialEstado[]
+  lotes            Lote[]
+  notificaciones   Notificacion[]
+  items            RequerimientoItem[]
+  centroCosto      CentroCosto         @relation(fields: [centroCostoId], references: [id])
+  operacion        Operacion           @relation(fields: [operacionId], references: [id])
+  solicitante      User                @relation("Solicitante", fields: [solicitanteId], references: [id])
+
+  @@index([estado])
+  @@index([solicitanteId])
+  @@index([fecha])
+  @@map("requerimientos")
+}
+
+model RequerimientoItem {
+  id                  String             @id @default(cuid())
+  numeroParte         String?
+  descripcion         String
+  marca               String?
+  modelo              String?
+  cantidadSolicitada  Int
+  cantidadAprobada    Int?
+  serial              String?
+  enStock             Boolean?
+  requiereCompra      Boolean?
+  motivoStock         String?
+  fechaEstimadaCompra DateTime?
+  eliminado           Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  requerimientoId     String
+  categoriaId         String
+  unidadMedidaId      String
+  productoId          String?
+  loteItems           LoteItem[]
+  modificaciones      ModificacionItem[]
+  categoria           Categoria          @relation(fields: [categoriaId], references: [id])
+  producto            Producto?          @relation(fields: [productoId], references: [id])
+  requerimiento       Requerimiento      @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  unidadMedida        UnidadMedida       @relation(fields: [unidadMedidaId], references: [id])
+
+  @@index([requerimientoId])
+  @@map("requerimiento_items")
+}
+
+model Lote {
+  id                  String        @id @default(cuid())
+  numero              Int
+  estado              LoteStatus    @default(PENDIENTE)
+  fechaDespacho       DateTime?
+  fechaEntrega        DateTime?
+  transportista       String?
+  destino             String?
+  confirmadoRecepcion Boolean       @default(false)
+  observaciones       String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  requerimientoId     String
+  receptorId          String?
+  items               LoteItem[]
+  receptor            User?         @relation("Receptor", fields: [receptorId], references: [id])
+  requerimiento       Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+
+  @@unique([requerimientoId, numero])
+  @@map("lotes")
+}
+
+model LoteItem {
+  id                  String            @id @default(cuid())
+  cantidadEnviada     Int
+  loteId              String
+  requerimientoItemId String
+  cantidadRecibida    Int?
+  lote                Lote              @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
+
+  @@unique([loteId, requerimientoItemId])
+  @@map("lote_items")
+}
+
+model HistorialEstado {
+  id              String               @id @default(cuid())
+  estadoAnterior  RequerimientoStatus?
+  estadoNuevo     RequerimientoStatus
+  comentario      String?
+  createdAt       DateTime             @default(now())
+  requerimientoId String
+  usuarioId       String
+  requerimiento   Requerimiento        @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  usuario         User                 @relation(fields: [usuarioId], references: [id])
+
+  @@index([requerimientoId])
+  @@map("historial_estados")
+}
+
+model ModificacionItem {
+  id                  String            @id @default(cuid())
+  campo               String
+  valorAnterior       String
+  valorNuevo          String
+  motivo              String?
+  createdAt           DateTime          @default(now())
+  requerimientoItemId String
+  usuarioId           String
+  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
+  usuario             User              @relation(fields: [usuarioId], references: [id])
+
+  @@map("modificaciones_items")
+}
+
+model Notificacion {
+  id              String           @id @default(cuid())
+  tipo            NotificationType
+  titulo          String
+  mensaje         String
+  leida           Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  usuarioId       String
+  requerimientoId String?
+  requerimiento   Requerimiento?   @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  usuario         User             @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, leida])
+  @@map("notificaciones")
+}
+
+model Archivo {
+  id               String         @id @default(cuid())
+  nombre           String
+  nombreAlmacenado String         @unique
+  tipo             TipoArchivo
+  mimeType         String
+  tamanio          Int
+  extension        String
+  ruta             String
+  descripcion      String?
+  activo           Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  subidoPorId      String
+  requerimientoId  String?
+  requerimiento    Requerimiento? @relation(fields: [requerimientoId], references: [id])
+  subidoPor        User           @relation("ArchivosSubidos", fields: [subidoPorId], references: [id])
+
+  @@index([requerimientoId])
+  @@index([subidoPorId])
+  @@index([tipo])
+  @@map("archivos")
+}
 
 enum UserRole {
   TECNICO
@@ -66,304 +324,4 @@ enum TipoArchivo {
   COTIZACION
   DOCUMENTO_GENERAL
   OTRO
-}
-
-// ============================================================================
-// USUARIOS Y AUTENTICACIÓN
-// ============================================================================
-
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  nombre    String
-  rol       UserRole
-  activo    Boolean  @default(true)
-  avatar    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relaciones
-  requerimientos      Requerimiento[]    @relation("Solicitante")
-  historialEstados    HistorialEstado[]
-  modificacionesItems ModificacionItem[]
-  notificaciones      Notificacion[]
-  lotesRecibidos      Lote[]             @relation("Receptor")
-  archivosSubidos     Archivo[]          @relation("ArchivosSubidos")
-
-  @@map("users")
-}
-
-// ============================================================================
-// CATÁLOGOS
-// ============================================================================
-
-model Operacion {
-  id     String  @id @default(cuid())
-  nombre String
-  codigo String  @unique
-  activo Boolean @default(true)
-
-  // Relaciones
-  requerimientos Requerimiento[]
-
-  @@map("operaciones")
-}
-
-model CentroCosto {
-  id     String  @id @default(cuid())
-  nombre String
-  codigo String  @unique
-  activo Boolean @default(true)
-
-  // Relaciones
-  requerimientos Requerimiento[]
-
-  @@map("centros_costo")
-}
-
-model Categoria {
-  id     String  @id @default(cuid())
-  nombre String  @unique
-  activo Boolean @default(true)
-
-  // Relaciones
-  productos          Producto[]
-  requerimientoItems RequerimientoItem[]
-
-  @@map("categorias")
-}
-
-model UnidadMedida {
-  id          String  @id @default(cuid())
-  nombre      String
-  abreviatura String  @unique
-  activo      Boolean @default(true)
-
-  // Relaciones
-  productos          Producto[]
-  requerimientoItems RequerimientoItem[]
-
-  @@map("unidades_medida")
-}
-
-model Producto {
-  id          String  @id @default(cuid())
-  numeroParte String? @unique
-  descripcion String
-  marca       String?
-  modelo      String?
-  activo      Boolean @default(true)
-
-  // Relaciones
-  categoriaId    String
-  categoria      Categoria    @relation(fields: [categoriaId], references: [id])
-  unidadMedidaId String
-  unidadMedida   UnidadMedida @relation(fields: [unidadMedidaId], references: [id])
-
-  requerimientoItems RequerimientoItem[]
-
-  @@map("productos")
-}
-
-// ============================================================================
-// REQUERIMIENTOS
-// ============================================================================
-
-model Requerimiento {
-  id          String              @id @default(cuid())
-  numero      String              @unique // REQ-2024-0001
-  fecha       DateTime            @default(now())
-  motivo      String
-  comentarios String?
-  estado      RequerimientoStatus @default(BORRADOR)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-
-  // Relaciones
-  solicitanteId String
-  solicitante   User        @relation("Solicitante", fields: [solicitanteId], references: [id])
-  operacionId   String
-  operacion     Operacion   @relation(fields: [operacionId], references: [id])
-  centroCostoId String
-  centroCosto   CentroCosto @relation(fields: [centroCostoId], references: [id])
-
-  items            RequerimientoItem[]
-  historialEstados HistorialEstado[]
-  lotes            Lote[]
-  notificaciones   Notificacion[]
-  archivos         Archivo[]
-
-  @@index([estado])
-  @@index([solicitanteId])
-  @@index([fecha])
-  @@map("requerimientos")
-}
-
-model RequerimientoItem {
-  id                  String    @id @default(cuid())
-  numeroParte         String?
-  descripcion         String
-  marca               String?
-  modelo              String?
-  cantidadSolicitada  Int
-  cantidadAprobada    Int?
-  serial              String?
-  enStock             Boolean?
-  requiereCompra      Boolean?
-  motivoStock         String? // Motivo del marcado de stock/compra
-  fechaEstimadaCompra DateTime?
-  eliminado           Boolean   @default(false)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  // Relaciones
-  requerimientoId String
-  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
-  categoriaId     String
-  categoria       Categoria     @relation(fields: [categoriaId], references: [id])
-  unidadMedidaId  String
-  unidadMedida    UnidadMedida  @relation(fields: [unidadMedidaId], references: [id])
-  productoId      String? // Opcional, si viene del catálogo
-  producto        Producto?     @relation(fields: [productoId], references: [id])
-
-  modificaciones ModificacionItem[]
-  loteItems      LoteItem[]
-
-  @@index([requerimientoId])
-  @@map("requerimiento_items")
-}
-
-// ============================================================================
-// ENTREGAS Y LOTES
-// ============================================================================
-
-model Lote {
-  id                  String     @id @default(cuid())
-  numero              Int // Lote 1, 2, 3...
-  estado              LoteStatus @default(PENDIENTE)
-  fechaDespacho       DateTime?
-  fechaEntrega        DateTime?
-  transportista       String?
-  destino             String?
-  confirmadoRecepcion Boolean    @default(false)
-  observaciones       String?
-  createdAt           DateTime   @default(now())
-  updatedAt           DateTime   @updatedAt
-
-  // Relaciones
-  requerimientoId String
-  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
-  receptorId      String?
-  receptor        User?         @relation("Receptor", fields: [receptorId], references: [id])
-
-  items LoteItem[]
-
-  @@unique([requerimientoId, numero])
-  @@map("lotes")
-}
-
-model LoteItem {
-  id               String @id @default(cuid())
-  cantidadEnviada  Int
-  cantidadRecibida Int?
-
-  // Relaciones
-  loteId              String
-  lote                Lote              @relation(fields: [loteId], references: [id], onDelete: Cascade)
-  requerimientoItemId String
-  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
-
-  @@unique([loteId, requerimientoItemId])
-  @@map("lote_items")
-}
-
-// ============================================================================
-// AUDITORÍA
-// ============================================================================
-
-model HistorialEstado {
-  id             String               @id @default(cuid())
-  estadoAnterior RequerimientoStatus?
-  estadoNuevo    RequerimientoStatus
-  comentario     String? // Obligatorio en rechazos
-  createdAt      DateTime             @default(now())
-
-  // Relaciones
-  requerimientoId String
-  requerimiento   Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
-  usuarioId       String
-  usuario         User          @relation(fields: [usuarioId], references: [id])
-
-  @@index([requerimientoId])
-  @@map("historial_estados")
-}
-
-model ModificacionItem {
-  id            String   @id @default(cuid())
-  campo         String // cantidad, eliminado, etc.
-  valorAnterior String
-  valorNuevo    String
-  motivo        String?
-  createdAt     DateTime @default(now())
-
-  // Relaciones
-  requerimientoItemId String
-  requerimientoItem   RequerimientoItem @relation(fields: [requerimientoItemId], references: [id], onDelete: Cascade)
-  usuarioId           String
-  usuario             User              @relation(fields: [usuarioId], references: [id])
-
-  @@map("modificaciones_items")
-}
-
-// ============================================================================
-// NOTIFICACIONES
-// ============================================================================
-
-model Notificacion {
-  id        String           @id @default(cuid())
-  tipo      NotificationType
-  titulo    String
-  mensaje   String
-  leida     Boolean          @default(false)
-  createdAt DateTime         @default(now())
-
-  // Relaciones
-  usuarioId       String
-  usuario         User           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  requerimientoId String?
-  requerimiento   Requerimiento? @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
-
-  @@index([usuarioId, leida])
-  @@map("notificaciones")
-}
-
-// ============================================================================
-// ARCHIVOS
-// ============================================================================
-
-model Archivo {
-  id               String      @id @default(cuid())
-  nombre           String      // Nombre original del archivo
-  nombreAlmacenado String      @unique // UUID.extension
-  tipo             TipoArchivo
-  mimeType         String      // application/pdf, image/png, etc.
-  tamanio          Int         // Bytes
-  extension        String      // pdf, docx, xlsx, jpg, png
-  ruta             String      // Ruta relativa en uploads/
-  descripcion      String?
-  activo           Boolean     @default(true)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-
-  // Relaciones
-  subidoPorId     String
-  subidoPor       User           @relation("ArchivosSubidos", fields: [subidoPorId], references: [id])
-  requerimientoId String?
-  requerimiento   Requerimiento? @relation(fields: [requerimientoId], references: [id], onDelete: SetNull)
-
-  @@index([requerimientoId])
-  @@index([subidoPorId])
-  @@index([tipo])
-  @@map("archivos")
 }

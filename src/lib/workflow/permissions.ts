@@ -94,9 +94,7 @@ export function getPermissions(
         permissions.canCreateLote = true;
         permissions.canDispatch = true;
       }
-      if (['ENVIADO', 'ENTREGADO_PARCIAL'].includes(status)) {
-        permissions.canConfirmDelivery = true;
-      }
+      // LOGISTICA solo puede despachar, NO confirmar recepción
       break;
 
     case 'ADMINISTRACION':

@@ -125,7 +125,7 @@ export function LoginForm() {
                 </Button>
                 {errors.password && (
                   <p className="text-sm text-destructive">{errors.password.message}</p>
-                  )}
+                )}
               </div>
             </div>
           </CardContent>

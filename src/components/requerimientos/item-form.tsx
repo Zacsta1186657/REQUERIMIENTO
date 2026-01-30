@@ -10,6 +10,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Table,
   TableBody,
   TableCell,
@@ -28,20 +41,20 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useCatalogosStore } from "@/stores/catalogos-store";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Check, ChevronsUpDown } from "lucide-react";
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react";
+import { cn } from "@/lib/utils";
 
 // Local UI type for form items
 export interface FormItem {
   id: string;
+  productoId?: string;
   numeroParte?: string;
   categoriaId: string;
-  descripcion: string;
   marca?: string;
   modelo?: string;
   cantidadSolicitada: number;
   unidadMedidaId: string;
-  serial?: string;
 }
 
 export interface ItemValidationError {
@@ -69,10 +82,12 @@ interface ItemFormProps {
 }
 
 export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm({ items, onChange, readOnly = false }, ref) {
-  const { categorias, unidadesMedida, fetchCatalogos, isLoaded } = useCatalogosStore();
+  const { categorias, unidadesMedida, productos, fetchCatalogos, fetchProductos, isLoaded } = useCatalogosStore();
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [newItemErrors, setNewItemErrors] = useState<string[]>([]);
   const [errorFields, setErrorFields] = useState<Set<string>>(new Set());
+  const [selectedProductoId, setSelectedProductoId] = useState<string>('');
+  const [openCombobox, setOpenCombobox] = useState(false);
   // Errores de items existentes: Map<itemId, Set<fieldName>>
   const [itemErrors, setItemErrors] = useState<Map<string, Set<string>>>(new Map());
   const [itemErrorMessages, setItemErrorMessages] = useState<ItemValidationError[]>([]);
@@ -81,7 +96,8 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
     if (!isLoaded) {
       fetchCatalogos();
     }
-  }, [isLoaded, fetchCatalogos]);
+    fetchProductos();
+  }, [isLoaded, fetchCatalogos, fetchProductos]);
 
   const defaultCategoriaId = categorias[0]?.id || "";
   const defaultUnidadId = unidadesMedida.find((u) => u.abreviatura === "UND")?.id || unidadesMedida[0]?.id || "";
@@ -89,12 +105,10 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
   const [newItem, setNewItem] = useState<Omit<FormItem, "id">>({
     numeroParte: "",
     categoriaId: defaultCategoriaId,
-    descripcion: "",
     marca: "",
     modelo: "",
     cantidadSolicitada: 1,
     unidadMedidaId: defaultUnidadId,
-    serial: "",
   });
 
   // Update defaults when catalogs load
@@ -120,10 +134,8 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
   const hasAnyData = () => {
     return !!(
       newItem.numeroParte?.trim() ||
-      newItem.descripcion.trim() ||
       newItem.marca?.trim() ||
-      newItem.modelo?.trim() ||
-      newItem.serial?.trim()
+      newItem.modelo?.trim()
     );
   };
 
@@ -140,10 +152,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
       errors.push("Categoría");
       fields.push("categoriaId");
     }
-    if (!newItem.descripcion.trim()) {
-      errors.push("Descripción");
-      fields.push("descripcion");
-    }
     if (!newItem.marca?.trim()) {
       errors.push("Marca");
       fields.push("marca");
@@ -159,10 +167,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
     if (!newItem.unidadMedidaId) {
       errors.push("Unidad");
       fields.push("unidadMedidaId");
-    }
-    if (!newItem.serial?.trim()) {
-      errors.push("Serial");
-      fields.push("serial");
     }
 
     return { errors, fields };
@@ -181,10 +185,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
       fields.push("categoriaId");
       fieldLabels.push("Categoría");
     }
-    if (!item.descripcion.trim()) {
-      fields.push("descripcion");
-      fieldLabels.push("Descripción");
-    }
     if (!item.marca?.trim()) {
       fields.push("marca");
       fieldLabels.push("Marca");
@@ -200,10 +200,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
     if (!item.unidadMedidaId) {
       fields.push("unidadMedidaId");
       fieldLabels.push("Unidad");
-    }
-    if (!item.serial?.trim()) {
-      fields.push("serial");
-      fieldLabels.push("Serial");
     }
 
     return { fields, fieldLabels };
@@ -266,6 +262,32 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
     }
   };
 
+  const handleProductoChange = (productoId: string) => {
+    const producto = productos.find((p) => p.id === productoId);
+
+    if (producto) {
+      setSelectedProductoId(productoId);
+      setNewItem({
+        ...newItem,
+        productoId: producto.id,
+        numeroParte: producto.numeroParte || '',
+        categoriaId: producto.categoriaId,
+        // NO autocomplete unidadMedidaId - must be selected manually
+        marca: producto.marca.nombre,
+        modelo: producto.modelo.nombre,
+      });
+
+      // Clear errors for autocompleted fields (NOT including unidadMedidaId)
+      const fieldsToClear = ['numeroParte', 'categoriaId', 'marca', 'modelo'];
+      const newErrors = new Set(errorFields);
+      fieldsToClear.forEach(f => newErrors.delete(f));
+      setErrorFields(newErrors);
+      setNewItemErrors(prev => prev.filter(e =>
+        !['N° Parte', 'Categoría', 'Marca', 'Modelo'].includes(e)
+      ));
+    }
+  };
+
   const handleAddItem = () => {
     const { errors, fields } = validateNewItem();
 
@@ -283,28 +305,26 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
     };
 
     onChange([...items, item]);
+    setSelectedProductoId('');
     setNewItem({
       numeroParte: "",
       categoriaId: categorias[0]?.id || "",
-      descripcion: "",
       marca: "",
       modelo: "",
       cantidadSolicitada: 1,
       unidadMedidaId: unidadesMedida.find((u) => u.abreviatura === "UND")?.id || unidadesMedida[0]?.id || "",
-      serial: "",
     });
   };
 
   const clearNewItem = () => {
+    setSelectedProductoId('');
     setNewItem({
       numeroParte: "",
       categoriaId: categorias[0]?.id || "",
-      descripcion: "",
       marca: "",
       modelo: "",
       cantidadSolicitada: 1,
       unidadMedidaId: unidadesMedida.find((u) => u.abreviatura === "UND")?.id || unidadesMedida[0]?.id || "",
-      serial: "",
     });
     setNewItemErrors([]);
     setErrorFields(new Set());
@@ -390,20 +410,26 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="min-w-[250px]">Producto</TableHead>
               <TableHead className="w-[100px]">N° Parte</TableHead>
               <TableHead className="w-[120px]">Categoría</TableHead>
-              <TableHead className="min-w-[200px]">Descripción</TableHead>
               <TableHead className="w-[100px]">Marca</TableHead>
               <TableHead className="w-[100px]">Modelo</TableHead>
               <TableHead className="w-[80px]">Cantidad</TableHead>
               <TableHead className="w-[100px]">Unidad</TableHead>
-              <TableHead className="w-[100px]">Serial</TableHead>
               {!readOnly && <TableHead className="w-[60px]"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.map((item) => (
               <TableRow key={item.id} className={itemErrors.has(item.id) ? "bg-destructive/5" : ""}>
+                <TableCell>
+                  {item.productoId ? (
+                    productos.find(p => p.id === item.productoId)?.descripcion || '-'
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
                 <TableCell>
                   {readOnly ? (
                     item.numeroParte || "-"
@@ -439,20 +465,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {readOnly ? (
-                    item.descripcion
-                  ) : (
-                    <Input
-                      value={item.descripcion}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "descripcion", e.target.value)
-                      }
-                      className={`h-8 ${hasItemFieldError(item.id, "descripcion") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      placeholder="Descripción del item"
-                    />
                   )}
                 </TableCell>
                 <TableCell>
@@ -528,20 +540,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
                     </Select>
                   )}
                 </TableCell>
-                <TableCell>
-                  {readOnly ? (
-                    item.serial || "-"
-                  ) : (
-                    <Input
-                      value={item.serial || ""}
-                      onChange={(e) =>
-                        handleItemChange(item.id, "serial", e.target.value)
-                      }
-                      className={`h-8 ${hasItemFieldError(item.id, "serial") ? "border-destructive ring-1 ring-destructive" : ""}`}
-                      placeholder="Serial"
-                    />
-                  )}
-                </TableCell>
                 {!readOnly && (
                   <TableCell>
                     <Button
@@ -562,36 +560,70 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
             {!readOnly && (
               <TableRow className="bg-muted/30">
                 <TableCell>
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCombobox}
+                        className="h-8 w-full justify-between font-normal"
+                      >
+                        {selectedProductoId
+                          ? productos.find((prod) => prod.id === selectedProductoId)?.descripcion
+                          : "Buscar producto..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar producto..." />
+                        <CommandList>
+                          <CommandEmpty>No se encontraron productos.</CommandEmpty>
+                          <CommandGroup>
+                            {productos.map((prod) => (
+                              <CommandItem
+                                key={prod.id}
+                                value={`${prod.descripcion} ${prod.marca.nombre} ${prod.modelo.nombre}`}
+                                onSelect={() => {
+                                  handleProductoChange(prod.id);
+                                  setOpenCombobox(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedProductoId === prod.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{prod.descripcion}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {prod.marca.nombre} {prod.modelo.nombre}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </TableCell>
+                <TableCell>
                   <Input
                     value={newItem.numeroParte || ""}
-                    onChange={(e) => {
-                      setNewItem({ ...newItem, numeroParte: e.target.value });
-                      if (errorFields.has("numeroParte")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("numeroParte");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(err => err !== "N° Parte"));
-                      }
-                    }}
-                    className={`h-8 ${errorFields.has("numeroParte") ? "border-destructive ring-destructive" : ""}`}
-                    placeholder="NP-000"
+                    disabled
+                    className="h-8 bg-muted"
+                    placeholder="Seleccione producto"
                   />
                 </TableCell>
                 <TableCell>
                   <Select
                     value={newItem.categoriaId}
-                    onValueChange={(v) => {
-                      setNewItem({ ...newItem, categoriaId: v });
-                      if (errorFields.has("categoriaId")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("categoriaId");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(e => e !== "Categoría"));
-                      }
-                    }}
+                    disabled
                   >
-                    <SelectTrigger className={`h-8 ${errorFields.has("categoriaId") ? "border-destructive ring-destructive" : ""}`}>
-                      <SelectValue placeholder="Categoría" />
+                    <SelectTrigger className="h-8 bg-muted">
+                      <SelectValue placeholder="Seleccione producto" />
                     </SelectTrigger>
                     <SelectContent>
                       {categorias.map((cat) => (
@@ -604,50 +636,18 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
                 </TableCell>
                 <TableCell>
                   <Input
-                    value={newItem.descripcion}
-                    onChange={(e) => {
-                      setNewItem({ ...newItem, descripcion: e.target.value });
-                      if (errorFields.has("descripcion")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("descripcion");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(err => err !== "Descripción"));
-                      }
-                    }}
-                    className={`h-8 ${errorFields.has("descripcion") ? "border-destructive ring-destructive" : ""}`}
-                    placeholder="Descripción del item"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Input
                     value={newItem.marca || ""}
-                    onChange={(e) => {
-                      setNewItem({ ...newItem, marca: e.target.value });
-                      if (errorFields.has("marca")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("marca");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(err => err !== "Marca"));
-                      }
-                    }}
-                    className={`h-8 ${errorFields.has("marca") ? "border-destructive ring-destructive" : ""}`}
-                    placeholder="Marca"
+                    disabled
+                    className="h-8 bg-muted"
+                    placeholder="Seleccione producto"
                   />
                 </TableCell>
                 <TableCell>
                   <Input
                     value={newItem.modelo || ""}
-                    onChange={(e) => {
-                      setNewItem({ ...newItem, modelo: e.target.value });
-                      if (errorFields.has("modelo")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("modelo");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(err => err !== "Modelo"));
-                      }
-                    }}
-                    className={`h-8 ${errorFields.has("modelo") ? "border-destructive ring-destructive" : ""}`}
-                    placeholder="Modelo"
+                    disabled
+                    className="h-8 bg-muted"
+                    placeholder="Seleccione producto"
                   />
                 </TableCell>
                 <TableCell>
@@ -697,22 +697,6 @@ export const ItemForm = forwardRef<ItemFormRef, ItemFormProps>(function ItemForm
                       ))}
                     </SelectContent>
                   </Select>
-                </TableCell>
-                <TableCell>
-                  <Input
-                    value={newItem.serial || ""}
-                    onChange={(e) => {
-                      setNewItem({ ...newItem, serial: e.target.value });
-                      if (errorFields.has("serial")) {
-                        const newErrors = new Set(errorFields);
-                        newErrors.delete("serial");
-                        setErrorFields(newErrors);
-                        setNewItemErrors(prev => prev.filter(err => err !== "Serial"));
-                      }
-                    }}
-                    className={`h-8 ${errorFields.has("serial") ? "border-destructive ring-destructive" : ""}`}
-                    placeholder="Serial"
-                  />
                 </TableCell>
                 <TableCell>
                   <Button

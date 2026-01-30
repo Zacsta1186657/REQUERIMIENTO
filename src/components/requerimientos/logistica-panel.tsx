@@ -204,14 +204,20 @@ export function LogisticaPanel({
   };
 
   const handleStockChange = (itemId: string, field: keyof ItemStockStatus, value: boolean | number | string) => {
+    const item = items.find((i) => i.id === itemId);
     setStockStatus((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
         [field]: value,
-        // Si marca en stock, desmarcar requiere compra y viceversa
-        ...(field === "enStock" && value === true ? { requiereCompra: false } : {}),
-        ...(field === "requiereCompra" && value === true ? { enStock: false } : {}),
+        // Si marca en stock, desmarcar requiere compra y aprobar cantidad total
+        ...(field === "enStock" && value === true
+          ? { requiereCompra: false, cantidadAprobada: item?.cantidadSolicitada || prev[itemId].cantidadAprobada }
+          : {}),
+        // Si marca requiere compra, desmarcar en stock y aprobar cantidad total
+        ...(field === "requiereCompra" && value === true
+          ? { enStock: false, cantidadAprobada: item?.cantidadSolicitada || prev[itemId].cantidadAprobada }
+          : {}),
       },
     }));
   };
@@ -273,14 +279,21 @@ export function LogisticaPanel({
   };
 
   const handleProcess = async (action: "stock" | "compra" | "mixto") => {
-    setIsProcessing(true);
     setError(null);
+
+    // Validar que hay archivos adjuntos
+    if (filesToUpload.length === 0) {
+      setError("Debe adjuntar al menos un documento antes de procesar.");
+      return;
+    }
+
+    setIsProcessing(true);
 
     try {
       // Primero guardar todos los items
       await handleSaveAll();
 
-      // Subir archivos si hay
+      // Subir archivos
       const filesUploaded = await uploadFiles();
       if (!filesUploaded) {
         setIsProcessing(false);
@@ -372,79 +385,49 @@ export function LogisticaPanel({
                 key={item.id}
                 className="p-4 border rounded-lg space-y-3 bg-muted/30"
               >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-medium">{item.descripcion}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.categoria?.nombre} • Solicitado: {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSaveItem(item.id)}
-                    disabled={isSaving}
-                  >
-                    <Save className="h-4 w-4" />
-                  </Button>
+                <div>
+                  <p className="font-medium">{item.descripcion}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.categoria?.nombre} • Solicitado: {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}
+                  </p>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  {/* Clasificación */}
-                  <div className="space-y-2">
-                    <Label className="text-xs">Clasificación</Label>
-                    <div className="flex gap-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`stock-${item.id}`}
-                          checked={status.enStock}
-                          onCheckedChange={(checked) =>
-                            handleStockChange(item.id, "enStock", checked === true)
-                          }
-                        />
-                        <label
-                          htmlFor={`stock-${item.id}`}
-                          className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                        >
-                          <Package className="h-3 w-3 text-green-600" />
-                          En Stock
-                        </label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`compra-${item.id}`}
-                          checked={status.requiereCompra}
-                          onCheckedChange={(checked) =>
-                            handleStockChange(item.id, "requiereCompra", checked === true)
-                          }
-                        />
-                        <label
-                          htmlFor={`compra-${item.id}`}
-                          className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                        >
-                          <ShoppingCart className="h-3 w-3 text-orange-600" />
-                          Requiere Compra
-                        </label>
-                      </div>
+                {/* Clasificación */}
+                <div className="space-y-2">
+                  <Label className="text-xs">Clasificación</Label>
+                  <div className="flex gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`stock-${item.id}`}
+                        checked={status.enStock}
+                        onCheckedChange={(checked) =>
+                          handleStockChange(item.id, "enStock", checked === true)
+                        }
+                      />
+                      <label
+                        htmlFor={`stock-${item.id}`}
+                        className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+                      >
+                        <Package className="h-3 w-3 text-green-600" />
+                        En Stock
+                      </label>
                     </div>
-                  </div>
-
-                  {/* Cantidad aprobada */}
-                  <div className="space-y-2">
-                    <Label htmlFor={`cantidad-${item.id}`} className="text-xs">
-                      Cantidad Aprobada
-                    </Label>
-                    <Input
-                      id={`cantidad-${item.id}`}
-                      type="number"
-                      min={1}
-                      max={item.cantidadSolicitada}
-                      value={status.cantidadAprobada}
-                      onChange={(e) =>
-                        handleStockChange(item.id, "cantidadAprobada", parseInt(e.target.value) || 0)
-                      }
-                      className="h-8"
-                    />
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`compra-${item.id}`}
+                        checked={status.requiereCompra}
+                        onCheckedChange={(checked) =>
+                          handleStockChange(item.id, "requiereCompra", checked === true)
+                        }
+                      />
+                      <label
+                        htmlFor={`compra-${item.id}`}
+                        className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+                      >
+                        <ShoppingCart className="h-3 w-3 text-orange-600" />
+                        Requiere Compra
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -458,6 +441,7 @@ export function LogisticaPanel({
                       <Input
                         id={`fecha-${item.id}`}
                         type="date"
+                        min={new Date().toISOString().split('T')[0]}
                         value={status.fechaEstimadaCompra}
                         onChange={(e) =>
                           handleStockChange(item.id, "fechaEstimadaCompra", e.target.value)
@@ -491,7 +475,7 @@ export function LogisticaPanel({
           <div className="flex items-center gap-2">
             <Paperclip className="h-5 w-5 text-blue-600" />
             <h4 className="font-medium">Adjuntar Documentos</h4>
-            <span className="text-xs text-muted-foreground">(Opcional)</span>
+            <span className="text-xs text-red-600 font-medium">(Obligatorio)</span>
           </div>
 
           <div

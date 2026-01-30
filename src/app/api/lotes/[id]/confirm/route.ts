@@ -18,9 +18,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
 
-    // Only RECEPTOR, LOGISTICA, and ADMIN can confirm delivery
-    if (!['RECEPTOR', 'LOGISTICA', 'ADMIN'].includes(user.rol)) {
-      return forbiddenResponse('No tienes permiso para confirmar recepción');
+    // Only RECEPTOR and ADMIN can confirm delivery
+    if (!['RECEPTOR', 'ADMIN'].includes(user.rol)) {
+      return forbiddenResponse('Solo el rol RECEPTOR puede confirmar la recepción física de mercancía');
     }
 
     const { id } = await params;

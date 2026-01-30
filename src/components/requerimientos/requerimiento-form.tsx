@@ -86,12 +86,10 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
           id: item.id,
           categoriaId: item.categoriaId,
           unidadMedidaId: item.unidadMedidaId,
-          descripcion: item.descripcion,
           cantidadSolicitada: item.cantidadSolicitada,
           numeroParte: item.numeroParte || "",
           marca: item.marca || "",
           modelo: item.modelo || "",
-          serial: item.serial || "",
         })));
       }
     }
@@ -120,9 +118,9 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
     }
 
     // Validar items
-    const invalidItems = itemsToValidate.filter(item => !item.descripcion.trim() || !item.categoriaId || !item.unidadMedidaId || item.cantidadSolicitada < 1);
+    const invalidItems = itemsToValidate.filter(item => !item.numeroParte?.trim() || !item.categoriaId || !item.marca?.trim() || !item.modelo?.trim() || !item.unidadMedidaId || item.cantidadSolicitada < 1);
     if (invalidItems.length > 0) {
-      errors.items = "Algunos items tienen datos incompletos (descripción, categoría, unidad o cantidad)";
+      errors.items = "Algunos items tienen datos incompletos (N° Parte, categoría, marca, modelo, unidad o cantidad)";
     }
 
     setFieldErrors(errors);
@@ -208,11 +206,13 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...item,
-            numeroParte: item.numeroParte || null,
-            marca: item.marca || null,
-            modelo: item.modelo || null,
-            serial: item.serial || null,
+            categoriaId: item.categoriaId,
+            unidadMedidaId: item.unidadMedidaId,
+            cantidadSolicitada: item.cantidadSolicitada,
+            numeroParte: item.numeroParte || '',
+            marca: item.marca || '',
+            modelo: item.modelo || '',
+            productoId: item.productoId || null,
           }),
         });
       }

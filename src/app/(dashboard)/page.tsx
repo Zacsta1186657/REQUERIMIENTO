@@ -26,6 +26,9 @@ export default function DashboardPage() {
   const formattedDate = today.charAt(0).toUpperCase() + today.slice(1);
   const firstName = user?.nombre?.split(" ")[0] || "Usuario";
 
+  // Solo TECNICO y ADMIN pueden crear requerimientos
+  const canCreateRequerimiento = user && (user.rol === 'TECNICO' || user.rol === 'ADMIN');
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -36,12 +39,14 @@ export default function DashboardPage() {
           </h1>
           <p className="text-muted-foreground">{formattedDate}</p>
         </div>
-        <Button asChild>
-          <Link href="/requerimientos/nuevo">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Requerimiento
-          </Link>
-        </Button>
+        {canCreateRequerimiento && (
+          <Button asChild>
+            <Link href="/requerimientos/nuevo">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Requerimiento
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -58,16 +63,18 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Acciones Rápidas</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <Button asChild variant="outline" className="justify-start h-auto py-4">
-              <Link href="/requerimientos/nuevo">
-                <div className="flex flex-col items-start">
-                  <span className="font-medium">Crear Requerimiento</span>
-                  <span className="text-xs text-muted-foreground">
-                    Solicita materiales o equipos
-                  </span>
-                </div>
-              </Link>
-            </Button>
+            {canCreateRequerimiento && (
+              <Button asChild variant="outline" className="justify-start h-auto py-4">
+                <Link href="/requerimientos/nuevo">
+                  <div className="flex flex-col items-start">
+                    <span className="font-medium">Crear Requerimiento</span>
+                    <span className="text-xs text-muted-foreground">
+                      Solicita materiales o equipos
+                    </span>
+                  </div>
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="outline" className="justify-start h-auto py-4">
               <Link href="/requerimientos">
                 <div className="flex flex-col items-start">

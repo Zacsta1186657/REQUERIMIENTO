@@ -59,6 +59,20 @@ export async function withAdminAuth(
   return handler(user);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function withLogisticaAuth(
+  handler: (user: AuthUser) => Promise<NextResponse<any>>
+): Promise<NextResponse> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return unauthorizedResponse();
+  }
+  if (user.rol !== 'LOGISTICA' && user.rol !== 'ADMIN' && user.rol !== 'ADMINISTRACION') {
+    return forbiddenResponse('Solo LOGISTICA y ADMIN pueden gestionar catálogos');
+  }
+  return handler(user);
+}
+
 export function paginationParams(searchParams: URLSearchParams) {
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)));

@@ -97,9 +97,31 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return validationError(validation.error);
     }
 
+    // Get descripcion from producto if productoId is provided
+    let descripcion = '';
+    if (validation.data.productoId) {
+      const producto = await prisma.producto.findUnique({
+        where: { id: validation.data.productoId },
+        select: { descripcion: true },
+      });
+      descripcion = producto?.descripcion || '';
+    }
+
+    // If no productoId, generate descripcion from numeroParte, marca, modelo
+    if (!descripcion) {
+      const parts = [
+        validation.data.numeroParte,
+        validation.data.marca,
+        validation.data.modelo,
+      ].filter(Boolean);
+      descripcion = parts.join(' - ');
+    }
+
     const item = await prisma.requerimientoItem.create({
       data: {
         ...validation.data,
+        descripcion,
+        serial: null, // Serial field is no longer used
         requerimientoId: id,
       },
       include: {

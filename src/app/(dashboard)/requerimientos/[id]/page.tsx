@@ -173,6 +173,7 @@ export default function RequerimientoDetailPage() {
   };
 
   const handleEditItem = (itemId: string, currentQuantity: number) => {
+    setActionError(null);
     setEditingItemId(itemId);
     setEditingQuantity(currentQuantity);
   };
@@ -180,6 +181,7 @@ export default function RequerimientoDetailPage() {
   const handleCancelEdit = () => {
     setEditingItemId(null);
     setEditingQuantity(0);
+    setActionError(null);
   };
 
   const handleSaveItem = async (itemId: string) => {
@@ -198,6 +200,7 @@ export default function RequerimientoDetailPage() {
       if (response.ok) {
         setEditingItemId(null);
         setEditingQuantity(0);
+        setActionError(null);
         await fetchRequerimiento(id);
       } else {
         const data = await response.json();
@@ -211,9 +214,18 @@ export default function RequerimientoDetailPage() {
   };
 
   const handleDeleteItem = async (itemId: string) => {
+    // Limpiar errores previos
+    setActionError(null);
+
+    // Validar que no sea el último item
+    const totalItems = requerimiento?.items?.length || 0;
+    if (totalItems <= 1) {
+      setActionError("No es posible eliminar todos los registros. Debe existir al menos un producto en el requerimiento.");
+      return;
+    }
+
     if (!confirm("¿Estás seguro de eliminar este item?")) return;
     setIsDeletingItem(itemId);
-    setActionError(null);
     try {
       const response = await fetch(`/api/requerimientos/${id}/items/${itemId}`, {
         method: "DELETE",
@@ -284,8 +296,8 @@ export default function RequerimientoDetailPage() {
       year: "numeric",
     });
   };
-  /*--- AGREGADO PARA QUE SOLO SEGURIDAD Y GESTION PUEDAN EDITAR Y ELIMINAR --- */
-  const allowedRolesForItems = ["SEGURIDAD", "GERENCIA"];
+  /*--- AGREGADO PARA QUE SOLO SEGURIDAD, GERENCIA Y ADMIN PUEDAN EDITAR Y ELIMINAR --- */
+  const allowedRolesForItems = ["SEGURIDAD", "GERENCIA", "ADMIN"];
   const hasRolePermission = allowedRolesForItems.includes(user?.rol || "");
   /*-------------------------------------------*/
 
@@ -458,16 +470,24 @@ export default function RequerimientoDetailPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {actionError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{actionError}</AlertDescription>
+                    </Alert>
+                  )}
                   {displayItems.length > 0 ? (
                     <div className="rounded-md border overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b bg-muted/50">
+                            {hasRolePermission && <th className="p-2 text-left">Nº Parte</th>}
                             <th className="p-2 text-left">Descripción</th>
                             <th className="p-2 text-left">Categoría</th>
                             <th className="p-2 text-center">Cantidad</th>
                             <th className="p-2 text-left">Unidad</th>
                             <th className="p-2 text-left">Marca</th>
+                            {hasRolePermission && <th className="p-2 text-left">Modelo</th>}
                             {(canEditItems || canDeleteItems) && (
                               <th className="p-2 text-center">Acciones</th>
                             )}
@@ -476,17 +496,26 @@ export default function RequerimientoDetailPage() {
                         <tbody>
                           {requerimiento.items?.map((item) => (
                             <tr key={item.id} className="border-b">
+                              {hasRolePermission && (
+                                <td className="p-2 font-mono text-xs">{item.numeroParte || "-"}</td>
+                              )}
                               <td className="p-2">{item.descripcion}</td>
                               <td className="p-2">{item.categoria?.nombre}</td>
                               <td className="p-2 text-center">
                                 {editingItemId === item.id ? (
                                   <Input
-                                    type="number"
+                                    type="text"
                                     value={editingQuantity}
-                                    onChange={(e) => setEditingQuantity(parseInt(e.target.value) || 0)}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      // Solo permite números (incluyendo 0)
+                                      if (value === '' || /^\d+$/.test(value)) {
+                                        setEditingQuantity(parseInt(value) || 0);
+                                      }
+                                    }}
                                     className="w-20 h-8 text-center"
-                                    min={1}
                                     autoFocus
+                                    placeholder="0"
                                   />
                                 ) : (
                                   item.cantidadSolicitada
@@ -494,6 +523,9 @@ export default function RequerimientoDetailPage() {
                               </td>
                               <td className="p-2">{item.unidadMedida?.abreviatura}</td>
                               <td className="p-2">{item.marca || "-"}</td>
+                              {hasRolePermission && (
+                                <td className="p-2">{item.modelo || "-"}</td>
+                              )}
                               {(canEditItems || canDeleteItems) && (
                                 <td className="p-2">
                                   <div className="flex items-center justify-center gap-1">

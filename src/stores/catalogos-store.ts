@@ -15,6 +15,7 @@ export interface CentroCosto {
 export interface Categoria {
   id: string;
   nombre: string;
+  activo?: boolean;
 }
 
 export interface UnidadMedida {
@@ -23,16 +24,31 @@ export interface UnidadMedida {
   abreviatura: string;
 }
 
+export interface Marca {
+  id: string;
+  nombre: string;
+  activo: boolean;
+}
+
+export interface Modelo {
+  id: string;
+  nombre: string;
+  marcaId: string;
+  marca: Marca;
+  activo: boolean;
+}
+
 export interface Producto {
   id: string;
   numeroParte: string | null;
   descripcion: string;
-  marca: string | null;
-  modelo: string | null;
   categoriaId: string;
-  unidadMedidaId: string;
+  marcaId: string;
+  modeloId: string;
   categoria: Categoria;
-  unidadMedida: UnidadMedida;
+  marca: Marca;
+  modelo: Modelo;
+  activo?: boolean;
 }
 
 interface CatalogosState {
@@ -40,6 +56,9 @@ interface CatalogosState {
   centrosCosto: CentroCosto[];
   categorias: Categoria[];
   unidadesMedida: UnidadMedida[];
+  marcas: Marca[];
+  modelos: Modelo[];
+  productos: Producto[];
   isLoading: boolean;
   isLoaded: boolean;
   error: string | null;
@@ -48,6 +67,9 @@ interface CatalogosState {
   fetchCentrosCosto: () => Promise<void>;
   fetchCategorias: () => Promise<void>;
   fetchUnidadesMedida: () => Promise<void>;
+  fetchMarcas: () => Promise<void>;
+  fetchModelos: (marcaId?: string) => Promise<void>;
+  fetchProductos: () => Promise<void>;
 }
 
 export const useCatalogosStore = create<CatalogosState>((set, get) => ({
@@ -55,6 +77,9 @@ export const useCatalogosStore = create<CatalogosState>((set, get) => ({
   centrosCosto: [],
   categorias: [],
   unidadesMedida: [],
+  marcas: [],
+  modelos: [],
+  productos: [],
   isLoading: false,
   isLoaded: false,
   error: null,
@@ -125,6 +150,39 @@ export const useCatalogosStore = create<CatalogosState>((set, get) => ({
       console.error('Fetch unidades medida error:', error);
     }
   },
+
+  fetchMarcas: async () => {
+    try {
+      const response = await fetch('/api/catalogos/marcas?limit=1000&activo=true');
+      const data = await response.json();
+      set({ marcas: data.data || [] });
+    } catch (error) {
+      console.error('Fetch marcas error:', error);
+    }
+  },
+
+  fetchModelos: async (marcaId?: string) => {
+    try {
+      const url = marcaId
+        ? `/api/catalogos/modelos?marcaId=${marcaId}&limit=1000&activo=true`
+        : '/api/catalogos/modelos?limit=1000&activo=true';
+      const response = await fetch(url);
+      const data = await response.json();
+      set({ modelos: data.data || [] });
+    } catch (error) {
+      console.error('Fetch modelos error:', error);
+    }
+  },
+
+  fetchProductos: async () => {
+    try {
+      const response = await fetch('/api/catalogos/productos?limit=1000&activo=true');
+      const data = await response.json();
+      set({ productos: data.data || [] });
+    } catch (error) {
+      console.error('Fetch productos error:', error);
+    }
+  },
 }));
 
 // Selector hooks
@@ -132,3 +190,6 @@ export const useOperaciones = () => useCatalogosStore((state) => state.operacion
 export const useCentrosCosto = () => useCatalogosStore((state) => state.centrosCosto);
 export const useCategorias = () => useCatalogosStore((state) => state.categorias);
 export const useUnidadesMedida = () => useCatalogosStore((state) => state.unidadesMedida);
+export const useMarcas = () => useCatalogosStore((state) => state.marcas);
+export const useModelos = () => useCatalogosStore((state) => state.modelos);
+export const useProductos = () => useCatalogosStore((state) => state.productos);

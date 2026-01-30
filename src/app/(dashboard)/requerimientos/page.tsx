@@ -13,6 +13,7 @@ import { RequerimientoGrid } from "@/components/requerimientos/requerimiento-gri
 import { RequerimientoTable } from "@/components/requerimientos/requerimiento-table";
 import { ViewMode, ViewToggle } from "@/components/requerimientos/view-toggle";
 import { useRequerimientosStore } from "@/stores/requerimientos-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { RequerimientoStatus, STATUS_CONFIG } from "@/types";
 import { Plus, Search, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -51,6 +52,11 @@ export default function RequerimientosPage() {
     fetchRequerimientos,
     setFilters,
   } = useRequerimientosStore();
+
+  const { user } = useAuthStore();
+
+  // Solo TECNICO y ADMIN pueden crear requerimientos
+  const canCreateRequerimiento = user && (user.rol === 'TECNICO' || user.rol === 'ADMIN');
 
   // Fix hydration mismatch with Radix UI Select
   useEffect(() => {
@@ -91,12 +97,14 @@ export default function RequerimientosPage() {
             Gestiona y visualiza todos los requerimientos
           </p>
         </div>
-        <Button asChild>
-          <Link href="/requerimientos/nuevo">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo Requerimiento
-          </Link>
-        </Button>
+        {canCreateRequerimiento && (
+          <Button asChild>
+            <Link href="/requerimientos/nuevo">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Requerimiento
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* Filters and View Toggle */}
