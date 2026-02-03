@@ -3,6 +3,7 @@ import { z } from 'zod';
 const userRoles = [
   'TECNICO',
   'SEGURIDAD',
+  'OPERACIONES',
   'GERENCIA',
   'LOGISTICA',
   'ADMINISTRACION',
@@ -22,6 +23,7 @@ export const createUserSchema = z.object({
     .string()
     .min(3, 'El nombre debe tener al menos 3 caracteres'),
   rol: z.enum(userRoles, { message: 'Rol inválido' }),
+  operacionId: z.string().nullable().optional(),
   activo: z.boolean().optional().default(true),
 });
 
@@ -39,6 +41,7 @@ export const updateUserSchema = z.object({
     .min(3, 'El nombre debe tener al menos 3 caracteres')
     .optional(),
   rol: z.enum(userRoles, { message: 'Rol inválido' }).optional(),
+  operacionId: z.string().nullable().optional(),
   activo: z.boolean().optional(),
   avatar: z.string().nullable().optional(),
 });

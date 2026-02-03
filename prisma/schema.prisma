@@ -14,8 +14,10 @@ model User {
   rol                 UserRole
   activo              Boolean            @default(true)
   avatar              String?
+  operacionId         String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
+  operacion           Operacion?         @relation(fields: [operacionId], references: [id])
   archivosSubidos     Archivo[]          @relation("ArchivosSubidos")
   historialEstados    HistorialEstado[]
   lotesRecibidos      Lote[]             @relation("Receptor")
@@ -31,6 +33,7 @@ model Operacion {
   nombre         String
   codigo         String          @unique
   activo         Boolean         @default(true)
+  usuarios       User[]
   requerimientos Requerimiento[]
 
   @@map("operaciones")
@@ -274,6 +277,7 @@ model Archivo {
 enum UserRole {
   TECNICO
   SEGURIDAD
+  OPERACIONES
   GERENCIA
   LOGISTICA
   ADMINISTRACION

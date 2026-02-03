@@ -38,6 +38,9 @@ import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE, formatFileSize } from "@/lib/file-co
 interface Item {
   id: string;
   descripcion: string;
+  numeroParte: string | null;
+  marca: string | null;
+  modelo: string | null;
   cantidadSolicitada: number;
   cantidadAprobada: number | null;
   enStock: boolean | null;
@@ -280,13 +283,6 @@ export function LogisticaPanel({
 
   const handleProcess = async (action: "stock" | "compra" | "mixto") => {
     setError(null);
-
-    // Validar que hay archivos adjuntos
-    if (filesToUpload.length === 0) {
-      setError("Debe adjuntar al menos un documento antes de procesar.");
-      return;
-    }
-
     setIsProcessing(true);
 
     try {
@@ -387,9 +383,12 @@ export function LogisticaPanel({
               >
                 <div>
                   <p className="font-medium">{item.descripcion}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {item.categoria?.nombre} • Solicitado: {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}
-                  </p>
+                  <div className="flex flex-wrap gap-x-4 text-sm text-muted-foreground">
+                    {item.numeroParte && <span>Nº Parte: {item.numeroParte}</span>}
+                    {item.modelo && <span>Modelo: {item.modelo}</span>}
+                    <span>{item.categoria?.nombre}</span>
+                    <span>Solicitado: {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}</span>
+                  </div>
                 </div>
 
                 {/* Clasificación */}
@@ -475,7 +474,7 @@ export function LogisticaPanel({
           <div className="flex items-center gap-2">
             <Paperclip className="h-5 w-5 text-blue-600" />
             <h4 className="font-medium">Adjuntar Documentos</h4>
-            <span className="text-xs text-red-600 font-medium">(Obligatorio)</span>
+            <span className="text-xs text-muted-foreground">(Opcional)</span>
           </div>
 
           <div

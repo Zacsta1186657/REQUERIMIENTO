@@ -481,13 +481,13 @@ export default function RequerimientoDetailPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b bg-muted/50">
-                            {hasRolePermission && <th className="p-2 text-left">Nº Parte</th>}
+                            <th className="p-2 text-left">Nº Parte</th>
                             <th className="p-2 text-left">Descripción</th>
                             <th className="p-2 text-left">Categoría</th>
                             <th className="p-2 text-center">Cantidad</th>
                             <th className="p-2 text-left">Unidad</th>
                             <th className="p-2 text-left">Marca</th>
-                            {hasRolePermission && <th className="p-2 text-left">Modelo</th>}
+                            <th className="p-2 text-left">Modelo</th>
                             {(canEditItems || canDeleteItems) && (
                               <th className="p-2 text-center">Acciones</th>
                             )}
@@ -496,9 +496,7 @@ export default function RequerimientoDetailPage() {
                         <tbody>
                           {requerimiento.items?.map((item) => (
                             <tr key={item.id} className="border-b">
-                              {hasRolePermission && (
-                                <td className="p-2 font-mono text-xs">{item.numeroParte || "-"}</td>
-                              )}
+                              <td className="p-2 font-mono text-xs">{item.numeroParte || "-"}</td>
                               <td className="p-2">{item.descripcion}</td>
                               <td className="p-2">{item.categoria?.nombre}</td>
                               <td className="p-2 text-center">
@@ -523,9 +521,7 @@ export default function RequerimientoDetailPage() {
                               </td>
                               <td className="p-2">{item.unidadMedida?.abreviatura}</td>
                               <td className="p-2">{item.marca || "-"}</td>
-                              {hasRolePermission && (
-                                <td className="p-2">{item.modelo || "-"}</td>
-                              )}
+                              <td className="p-2">{item.modelo || "-"}</td>
                               {(canEditItems || canDeleteItems) && (
                                 <td className="p-2">
                                   <div className="flex items-center justify-center gap-1">
@@ -759,6 +755,9 @@ export default function RequerimientoDetailPage() {
           items={requerimiento.items?.map((item) => ({
             id: item.id,
             descripcion: item.descripcion,
+            numeroParte: item.numeroParte ?? null,
+            marca: item.marca ?? null,
+            modelo: item.modelo ?? null,
             cantidadSolicitada: item.cantidadSolicitada,
             cantidadAprobada: item.cantidadAprobada ?? null,
             enStock: item.enStock ?? null,
@@ -783,6 +782,9 @@ export default function RequerimientoDetailPage() {
             cantidadAprobada: item.cantidadAprobada ?? null,
             categoria: item.categoria ? { nombre: item.categoria.nombre } : undefined,
             unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
+            numeroParte: item.numeroParte ?? undefined,
+            marca: item.marca ?? undefined,
+            modelo: item.modelo ?? undefined,
           })) || []}
           lotes={requerimiento.lotes?.map((lote) => ({
             id: lote.id,
@@ -831,13 +833,29 @@ export default function RequerimientoDetailPage() {
               requerimientoItem: loteItem.requerimientoItem ? {
                 id: loteItem.requerimientoItem.id,
                 descripcion: loteItem.requerimientoItem.descripcion,
+                numeroParte: loteItem.requerimientoItem.numeroParte ?? null,
+                marca: loteItem.requerimientoItem.marca ?? null,
+                modelo: loteItem.requerimientoItem.modelo ?? null,
                 categoria: loteItem.requerimientoItem.categoria ? { nombre: loteItem.requerimientoItem.categoria.nombre } : undefined,
                 unidadMedida: loteItem.requerimientoItem.unidadMedida ? { abreviatura: loteItem.requerimientoItem.unidadMedida.abreviatura } : undefined,
               } : {
                 id: "",
                 descripcion: "",
+                numeroParte: null,
+                marca: null,
+                modelo: null,
               },
             })) || [],
+          })) || []}
+          items={requerimiento.items?.map((item) => ({
+            id: item.id,
+            descripcion: item.descripcion,
+            cantidadSolicitada: item.cantidadSolicitada,
+            cantidadAprobada: item.cantidadAprobada ?? null,
+            numeroParte: item.numeroParte ?? undefined,
+            marca: item.marca ?? undefined,
+            modelo: item.modelo ?? undefined,
+            unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
           })) || []}
           estado={requerimiento.estado}
           onUpdate={() => fetchRequerimiento(id)}

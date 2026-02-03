@@ -13,12 +13,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import {
   Truck,
   Package,
   Loader2,
   Plus,
   Send,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -29,6 +34,9 @@ interface Item {
   cantidadAprobada: number | null;
   categoria?: { nombre: string };
   unidadMedida?: { abreviatura: string };
+  numeroParte?: string;
+  marca?: string;
+  modelo?: string;
 }
 
 interface Lote {
@@ -90,6 +98,28 @@ export function DespachoPanel({
     const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
     return cantidadEnviada < cantidadTotal;
   });
+
+  // Calcular estadísticas de envío
+  const itemsCompletamenteEnviados = items.filter((item) => {
+    const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
+    const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
+    return cantidadEnviada >= cantidadTotal;
+  }).length;
+
+  const itemsParcialmenteEnviados = items.filter((item) => {
+    const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
+    const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
+    return cantidadEnviada > 0 && cantidadEnviada < cantidadTotal;
+  }).length;
+
+  // Calcular totales de cantidades
+  const totalCantidad = items.reduce((sum, item) => sum + (item.cantidadAprobada || item.cantidadSolicitada), 0);
+  const totalEnviado = Object.values(cantidadesEnviadas).reduce((sum, cant) => sum + cant, 0);
+  const porcentajeEnvio = totalCantidad > 0 ? Math.round((totalEnviado / totalCantidad) * 100) : 0;
+
+  // Determinar estado general del envío
+  const hayEnvioParcial = totalEnviado > 0 && totalEnviado < totalCantidad;
+  const envioCompleto = totalEnviado >= totalCantidad;
 
   const handleItemSelect = (itemId: string, cantidad: number) => {
     if (cantidad > 0) {
@@ -188,6 +218,123 @@ export function DespachoPanel({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Resumen de Estado de Envío */}
+        <div className={`p-4 rounded-lg border-2 ${
+          envioCompleto
+            ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700"
+            : hayEnvioParcial
+              ? "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700"
+              : "bg-slate-50 dark:bg-slate-900/20 border-slate-300 dark:border-slate-700"
+        }`}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {envioCompleto ? (
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              ) : hayEnvioParcial ? (
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              ) : (
+                <Clock className="h-5 w-5 text-slate-500" />
+              )}
+              <span className="font-semibold text-sm">
+                {envioCompleto
+                  ? "ENVÍO COMPLETADO"
+                  : hayEnvioParcial
+                    ? "ENVÍO PARCIAL EN CURSO"
+                    : "PENDIENTE DE ENVÍO"}
+              </span>
+            </div>
+            <Badge variant={envioCompleto ? "default" : hayEnvioParcial ? "secondary" : "outline"}>
+              {porcentajeEnvio}% enviado
+            </Badge>
+          </div>
+
+          {/* Barra de progreso */}
+          <Progress value={porcentajeEnvio} className="h-2 mb-3" />
+
+          {/* Estadísticas */}
+          <div className="grid grid-cols-3 gap-4 text-center text-sm">
+            <div>
+              <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">
+                {itemsCompletamenteEnviados}
+              </div>
+              <div className="text-xs text-muted-foreground">Items completos</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-amber-600">
+                {itemsParcialmenteEnviados}
+              </div>
+              <div className="text-xs text-muted-foreground">Parciales</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-slate-500">
+                {itemsPendientes.length - itemsParcialmenteEnviados}
+              </div>
+              <div className="text-xs text-muted-foreground">Sin enviar</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Lista de Items Pendientes con detalle */}
+        {itemsPendientes.length > 0 && !showCreateLote && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                Items Pendientes de Envío
+              </h4>
+              <span className="text-xs text-muted-foreground">
+                {totalCantidad - totalEnviado} unidades restantes
+              </span>
+            </div>
+            <div className="space-y-2">
+              {itemsPendientes.map((item) => {
+                const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
+                const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
+                const cantidadPendiente = cantidadTotal - cantidadEnviada;
+                const progreso = Math.round((cantidadEnviada / cantidadTotal) * 100);
+
+                return (
+                  <div key={item.id} className="p-3 border rounded-lg bg-muted/30">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{item.descripcion}</span>
+                          {cantidadEnviada > 0 && (
+                            <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              Parcial
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 space-x-3">
+                          {item.numeroParte && <span>N° Parte: {item.numeroParte}</span>}
+                          {item.marca && <span>Marca: {item.marca}</span>}
+                          {item.modelo && <span>Modelo: {item.modelo}</span>}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-amber-600">
+                          {cantidadPendiente} {item.unidadMedida?.abreviatura}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          de {cantidadTotal} pendiente
+                        </div>
+                      </div>
+                    </div>
+                    {cantidadEnviada > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Progress value={progreso} className="h-1 flex-1" />
+                        <span className="text-xs text-muted-foreground w-10">{progreso}%</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <Separator />
+
         {error && (
           <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg text-sm">
             {error}
@@ -197,7 +344,15 @@ export function DespachoPanel({
         {/* Lotes existentes */}
         {lotes.length > 0 && (
           <div className="space-y-3">
-            <h4 className="font-medium text-sm">Lotes Creados</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                Historial de Lotes Enviados
+              </h4>
+              <span className="text-xs text-muted-foreground">
+                {lotes.length} lote{lotes.length > 1 ? "s" : ""}
+              </span>
+            </div>
             {lotes.map((lote) => (
               <div
                 key={lote.id}
@@ -263,7 +418,7 @@ export function DespachoPanel({
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Crear Nuevo Lote de Envío
+                {hayEnvioParcial ? "Crear Lote Adicional (Envío Parcial)" : "Crear Nuevo Lote de Envío"}
               </Button>
             ) : (
               <div className="space-y-4 p-4 border rounded-lg bg-muted/20">
@@ -378,9 +533,12 @@ export function DespachoPanel({
 
         {/* Mensaje si todo está enviado */}
         {itemsPendientes.length === 0 && lotes.length > 0 && (
-          <div className="text-center py-4 text-green-600">
-            <Truck className="h-8 w-8 mx-auto mb-2" />
-            <p className="font-medium">Todos los items han sido despachados</p>
+          <div className="text-center py-6 text-green-600 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <CheckCircle2 className="h-10 w-10 mx-auto mb-2" />
+            <p className="font-semibold text-lg">Todos los items han sido despachados</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {lotes.length} lote{lotes.length > 1 ? "s" : ""} enviado{lotes.length > 1 ? "s" : ""} • {totalEnviado} unidades totales
+            </p>
           </div>
         )}
       </CardContent>

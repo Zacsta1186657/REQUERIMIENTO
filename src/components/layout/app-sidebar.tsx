@@ -57,7 +57,7 @@ const menuItems = [
     url: "/catalogos",
     icon: Package,
     adminOnly: false,
-    excludeRoles: ["TECNICO", "RECEPTOR", "SEGURIDAD", "GERENCIA"] as UserRole[],
+    excludeRoles: ["TECNICO", "RECEPTOR", "SEGURIDAD", "OPERACIONES", "GERENCIA"] as UserRole[],
   },
   {
     title: "Usuarios",

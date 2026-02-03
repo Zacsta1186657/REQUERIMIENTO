@@ -8,6 +8,11 @@ export interface AuthUser {
   nombre: string;
   rol: UserRole;
   avatar: string | null;
+  operacion?: {
+    id: string;
+    nombre: string;
+    codigo: string;
+  } | null;
 }
 
 interface AuthState {

@@ -27,6 +27,7 @@ import { useState } from "react";
 const availableRoles: UserRole[] = [
   "TECNICO",
   "SEGURIDAD",
+  "OPERACIONES",
   "GERENCIA",
   "LOGISTICA",
   "ADMINISTRACION",

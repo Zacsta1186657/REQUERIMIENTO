@@ -64,6 +64,8 @@ export function MarcasTable() {
       let url = `/api/catalogos/marcas?page=${currentPage}&limit=${itemsPerPage}&search=${search}`;
       if (!showInactive) {
         url += '&activo=true';
+      } else {
+        url += '&activo=false';
       }
       const response = await fetch(url);
       const data = await response.json();

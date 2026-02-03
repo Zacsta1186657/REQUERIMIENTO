@@ -62,8 +62,11 @@ export function CategoriasTable() {
     try {
       setLoading(true);
       let url = `/api/catalogos/categorias?page=${currentPage}&limit=${itemsPerPage}&search=${search}`;
+      console.log(showInactive);
       if (!showInactive) {
         url += '&activo=true';
+      } else {
+        url += '&activo=false';
       }
       const response = await fetch(url);
       const data = await response.json();

@@ -68,6 +68,7 @@ export function getPermissions(
   // Role-specific permissions
   switch (userRole) {
     case 'SEGURIDAD':
+    case 'OPERACIONES':
       if (status === 'VALIDACION_SEGURIDAD') {
         permissions.canApprove = true;
         permissions.canReject = true;
@@ -144,6 +145,22 @@ export function canViewRequerimiento(
       'ENTREGADO_PARCIAL',
       'ENTREGADO',
     ],
+    OPERACIONES: [
+      'VALIDACION_SEGURIDAD',
+      'APROBADO_SEGURIDAD',
+      'RECHAZADO_SEGURIDAD',
+      'VALIDACION_GERENCIA',
+      'APROBADO_GERENCIA',
+      'RECHAZADO_GERENCIA',
+      'REVISION_LOGISTICA',
+      'EN_COMPRA',
+      'APROBADO_ADM',
+      'RECHAZADO_ADM',
+      'LISTO_DESPACHO',
+      'ENVIADO',
+      'ENTREGADO_PARCIAL',
+      'ENTREGADO',
+    ],
     GERENCIA: [
       'VALIDACION_GERENCIA',
       'APROBADO_GERENCIA',
@@ -179,6 +196,7 @@ export function canViewRequerimiento(
 export function getPendingApprovalStatuses(userRole: UserRole): RequerimientoStatus[] {
   const statusMap: Partial<Record<UserRole, RequerimientoStatus[]>> = {
     SEGURIDAD: ['VALIDACION_SEGURIDAD'],
+    OPERACIONES: ['VALIDACION_SEGURIDAD'],
     GERENCIA: ['VALIDACION_GERENCIA'],
     ADMINISTRACION: ['EN_COMPRA'],
     ADMIN: ['VALIDACION_SEGURIDAD', 'VALIDACION_GERENCIA', 'EN_COMPRA'],

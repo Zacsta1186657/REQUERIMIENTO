@@ -24,6 +24,11 @@ export interface AuthUser {
   nombre: string;
   rol: UserRole;
   avatar: string | null;
+  operacion?: {
+    id: string;
+    nombre: string;
+    codigo: string;
+  } | null;
 }
 
 export async function createToken(payload: JWTPayload): Promise<string> {
@@ -80,6 +85,13 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       rol: true,
       avatar: true,
       activo: true,
+      operacion: {
+        select: {
+          id: true,
+          nombre: true,
+          codigo: true,
+        },
+      },
     },
   });
 
@@ -91,6 +103,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     nombre: user.nombre,
     rol: user.rol as UserRole,
     avatar: user.avatar,
+    operacion: user.operacion,
   };
 }
 

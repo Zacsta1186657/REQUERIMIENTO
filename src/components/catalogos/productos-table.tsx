@@ -121,6 +121,8 @@ export function ProductosTable() {
       // Filtro de activos: por defecto solo activos, si showInactive está activado mostrar todos
       if (!showInactive) {
         url += '&activo=true';
+      } else {
+        url += '&activo=false';
       }
       const response = await fetch(url);
       const data = await response.json();

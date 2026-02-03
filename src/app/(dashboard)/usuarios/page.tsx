@@ -30,6 +30,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Pagination,
   PaginationContent,
   PaginationEllipsis,
@@ -45,13 +53,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-// Roles that can manage users
-const ADMIN_ROLES: UserRole[] = ["ADMIN", "ADMINISTRACION"];
+// Roles that can manage users (solo ADMIN puede crear usuarios)
+const ADMIN_ROLES: UserRole[] = ["ADMIN"];
 
 // Available roles for registration
 const availableRoles: UserRole[] = [
   "TECNICO",
   "SEGURIDAD",
+  "OPERACIONES",
   "GERENCIA",
   "LOGISTICA",
   "ADMINISTRACION",
@@ -65,9 +74,21 @@ interface User {
   email: string;
   rol: UserRole;
   activo: boolean;
+  operacion?: {
+    id: string;
+    nombre: string;
+    codigo: string;
+  } | null;
   _count?: {
     requerimientos: number;
   };
+}
+
+interface Operacion {
+  id: string;
+  nombre: string;
+  codigo: string;
+  activo: boolean;
 }
 
 export default function UsuariosPage() {
@@ -81,6 +102,7 @@ export default function UsuariosPage() {
   const [mounted, setMounted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [operaciones, setOperaciones] = useState<Operacion[]>([]);
   const itemsPerPage = 10;
 
   // Fix hydration mismatch with Radix UI Select
@@ -88,14 +110,42 @@ export default function UsuariosPage() {
     setMounted(true);
   }, []);
 
+  // Fetch operaciones
+  const fetchOperaciones = async () => {
+    try {
+      const response = await fetch("/api/catalogos/operaciones");
+      if (response.ok) {
+        const data = await response.json();
+        setOperaciones(data.data?.filter((op: Operacion) => op.activo) || []);
+      }
+    } catch (error) {
+      console.error("Error fetching operaciones:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchOperaciones();
+  }, []);
+
   // Form state
   const [formData, setFormData] = useState({
     nombre: "",
     email: "",
     rol: "" as UserRole | "",
+    operacionId: "",
     password: "",
     confirmPassword: "",
   });
+
+  // Edit state
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    nombre: "",
+    rol: "" as UserRole | "",
+    operacionId: "",
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -172,6 +222,7 @@ export default function UsuariosPage() {
           nombre: formData.nombre,
           email: formData.email,
           rol: formData.rol,
+          operacionId: formData.operacionId || null,
           password: formData.password,
         }),
       });
@@ -181,6 +232,7 @@ export default function UsuariosPage() {
           nombre: "",
           email: "",
           rol: "",
+          operacionId: "",
           password: "",
           confirmPassword: "",
         });
@@ -215,6 +267,54 @@ export default function UsuariosPage() {
     }
   };
 
+  const handleOpenEditDialog = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({
+      nombre: user.nombre,
+      rol: user.rol,
+      operacionId: user.operacion?.id || "",
+    });
+    setEditError(null);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditingUser(null);
+    setEditFormData({ nombre: "", rol: "", operacionId: "" });
+    setEditError(null);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setIsEditing(true);
+    setEditError(null);
+
+    try {
+      const response = await fetch(`/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: editFormData.nombre,
+          rol: editFormData.rol,
+          operacionId: editFormData.operacionId || null,
+        }),
+      });
+
+      if (response.ok) {
+        handleCloseEditDialog();
+        await fetchUsers();
+      } else {
+        const data = await response.json();
+        setEditError(data.error || "Error al actualizar usuario");
+      }
+    } catch (err) {
+      setEditError("Error de conexión");
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
   const getRoleBadgeVariant = (rol: UserRole) => {
     switch (rol) {
       case "ADMIN":
@@ -224,6 +324,8 @@ export default function UsuariosPage() {
       case "GERENCIA":
         return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
       case "SEGURIDAD":
+        return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
+      case "OPERACIONES":
         return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
       case "LOGISTICA":
         return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
@@ -338,6 +440,30 @@ export default function UsuariosPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="operacion">Operación</Label>
+                {mounted ? (
+                  <Select
+                    value={formData.operacionId}
+                    onValueChange={(v) => setFormData({ ...formData, operacionId: v })}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona una operación" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operaciones.map((op) => (
+                        <SelectItem key={op.id} value={op.id}>
+                          {op.codigo} - {op.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Skeleton className="h-10 w-full" />
+                )}
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="password">Contraseña</Label>
                 <Input
                   id="password"
@@ -431,6 +557,7 @@ export default function UsuariosPage() {
                   <TableHead>Usuario</TableHead>
                   <TableHead>Correo</TableHead>
                   <TableHead>Rol</TableHead>
+                  <TableHead>Operación</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
@@ -438,7 +565,7 @@ export default function UsuariosPage() {
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No hay usuarios registrados
                     </TableCell>
                   </TableRow>
@@ -479,6 +606,15 @@ export default function UsuariosPage() {
                             {ROLE_LABELS[user.rol]}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {user.operacion ? (
+                            <span className="text-sm">
+                              {user.operacion.codigo} - {user.operacion.nombre}
+                            </span>
+                          ) : (
+                            <span className="text-xs italic">Sin asignar</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={user.activo ? "default" : "secondary"}>
                             {user.activo ? "Activo" : "Inactivo"}
@@ -486,7 +622,12 @@ export default function UsuariosPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleOpenEditDialog(user)}
+                            >
                               <Pencil className="h-4 w-4" />
                               <span className="sr-only">Editar</span>
                             </Button>
@@ -560,6 +701,105 @@ export default function UsuariosPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && handleCloseEditDialog()}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Usuario</DialogTitle>
+            <DialogDescription>
+              Modifica los datos del usuario. Los cambios se guardarán inmediatamente.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditUser}>
+            <div className="grid gap-4 py-4">
+              {editError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{editError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-nombre">Nombre Completo</Label>
+                <Input
+                  id="edit-nombre"
+                  value={editFormData.nombre}
+                  onChange={(e) => setEditFormData({ ...editFormData, nombre: e.target.value })}
+                  required
+                  disabled={isEditing}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-rol">Rol</Label>
+                {mounted ? (
+                  <Select
+                    value={editFormData.rol}
+                    onValueChange={(v) => setEditFormData({ ...editFormData, rol: v as UserRole })}
+                    disabled={isEditing || editingUser?.id === currentUser?.id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {ROLE_LABELS[role]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Skeleton className="h-10 w-full" />
+                )}
+                {editingUser?.id === currentUser?.id && (
+                  <p className="text-xs text-muted-foreground">No puedes cambiar tu propio rol</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-operacion">Operación</Label>
+                {mounted ? (
+                  <Select
+                    value={editFormData.operacionId || "none"}
+                    onValueChange={(v) => setEditFormData({ ...editFormData, operacionId: v === "none" ? "" : v })}
+                    disabled={isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin operación asignada" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin operación</SelectItem>
+                      {operaciones.map((op) => (
+                        <SelectItem key={op.id} value={op.id}>
+                          {op.codigo} - {op.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Skeleton className="h-10 w-full" />
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCloseEditDialog}
+                disabled={isEditing}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isEditing}>
+                {isEditing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {isEditing ? "Guardando..." : "Guardar Cambios"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

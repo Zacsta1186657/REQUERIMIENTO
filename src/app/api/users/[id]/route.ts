@@ -65,13 +65,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const { id } = await params;
 
-    // Only ADMIN and ADMINISTRACION can update other users
+    // Only ADMIN can update other users
     // Users can only update their own non-role fields
     const isSelf = user.id === id;
-    const isAdmin = user.rol === 'ADMIN' || user.rol === 'ADMINISTRACION';
+    const isAdmin = user.rol === 'ADMIN';
 
     if (!isSelf && !isAdmin) {
-      return forbiddenResponse('No tienes permiso para modificar este usuario');
+      return forbiddenResponse('Solo el administrador puede modificar usuarios');
     }
 
     const body = await request.json();
@@ -122,6 +122,13 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         avatar: true,
         createdAt: true,
         updatedAt: true,
+        operacion: {
+          select: {
+            id: true,
+            nombre: true,
+            codigo: true,
+          },
+        },
       },
     });
 

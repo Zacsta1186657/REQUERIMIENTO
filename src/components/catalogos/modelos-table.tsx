@@ -94,6 +94,8 @@ export function ModelosTable() {
       }
       if (!showInactive) {
         url += '&activo=true';
+      } else {
+        url += '&activo=false';
       }
       const response = await fetch(url);
       const data = await response.json();

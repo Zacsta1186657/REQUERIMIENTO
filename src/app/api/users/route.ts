@@ -57,6 +57,13 @@ export async function GET(request: NextRequest) {
           avatar: true,
           createdAt: true,
           updatedAt: true,
+          operacion: {
+            select: {
+              id: true,
+              nombre: true,
+              codigo: true,
+            },
+          },
           _count: {
             select: {
               requerimientos: true,
@@ -82,8 +89,8 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) return unauthorizedResponse();
 
-    // Only ADMIN and ADMINISTRACION can create users
-    if (user.rol !== 'ADMIN' && user.rol !== 'ADMINISTRACION') {
+    // Solo ADMIN puede crear usuarios
+    if (user.rol !== 'ADMIN') {
       return forbiddenResponse('No tienes permiso para crear usuarios');
     }
 
@@ -94,7 +101,7 @@ export async function POST(request: NextRequest) {
       return validationError(validation.error);
     }
 
-    const { email, password, nombre, rol, activo } = validation.data;
+    const { email, password, nombre, rol, activo, operacionId } = validation.data;
 
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
@@ -115,6 +122,7 @@ export async function POST(request: NextRequest) {
         nombre,
         rol,
         activo: activo ?? true,
+        operacionId: operacionId || null,
       },
       select: {
         id: true,
@@ -124,6 +132,13 @@ export async function POST(request: NextRequest) {
         activo: true,
         avatar: true,
         createdAt: true,
+        operacion: {
+          select: {
+            id: true,
+            nombre: true,
+            codigo: true,
+          },
+        },
       },
     });
 

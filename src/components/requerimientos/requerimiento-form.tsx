@@ -66,6 +66,13 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
     fetchCatalogos();
   }, [fetchCatalogos]);
 
+  // Auto-asignar operación del usuario si tiene una asignada
+  useEffect(() => {
+    if (user?.operacion && !requerimientoId) {
+      setFormData(prev => ({ ...prev, operacionId: user.operacion!.id }));
+    }
+  }, [user, requerimientoId]);
+
   useEffect(() => {
     if (requerimientoId) {
       fetchRequerimiento(requerimientoId);
@@ -104,7 +111,8 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
   const validateForm = (itemsToValidate: FormItem[]): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!formData.operacionId) {
+    // Si el usuario no tiene operación asignada, debe seleccionar una
+    if (!formData.operacionId && !user?.operacion) {
       errors.operacion = "Debe seleccionar una operación";
     }
     if (!formData.centroCostoId) {
@@ -287,25 +295,34 @@ export function RequerimientoForm({ requerimientoId }: RequerimientoFormProps) {
               />
             </div>
 
-            {/* Editable fields */}
+            {/* Operación - si el usuario tiene asignada, mostrar como readonly */}
             <div className="space-y-2">
               <Label htmlFor="operacion">Operación *</Label>
-              <Select
-                value={formData.operacionId}
-                onValueChange={(v) => setFormData({ ...formData, operacionId: v })}
-                required
-              >
-                <SelectTrigger id="operacion">
-                  <SelectValue placeholder="Seleccione la operación" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operaciones.map((op) => (
-                    <SelectItem key={op.id} value={op.id}>
-                      {op.codigo} - {op.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {user?.operacion ? (
+                <Input
+                  id="operacion"
+                  value={`${user.operacion.codigo} - ${user.operacion.nombre}`}
+                  disabled
+                  className="bg-muted"
+                />
+              ) : (
+                <Select
+                  value={formData.operacionId}
+                  onValueChange={(v) => setFormData({ ...formData, operacionId: v })}
+                  required
+                >
+                  <SelectTrigger id="operacion">
+                    <SelectValue placeholder="Seleccione la operación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {operaciones.map((op) => (
+                      <SelectItem key={op.id} value={op.id}>
+                        {op.codigo} - {op.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="centroCosto">Centro de Costo *</Label>

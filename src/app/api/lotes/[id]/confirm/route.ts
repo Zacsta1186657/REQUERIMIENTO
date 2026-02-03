@@ -81,20 +81,63 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    // Check if all lotes are delivered
-    const allLotes = await prisma.lote.findMany({
+    // Get all requerimiento items with their required quantities
+    const requerimientoItems = await prisma.requerimientoItem.findMany({
       where: { requerimientoId: lote.requerimientoId },
-      select: { estado: true },
+      select: {
+        id: true,
+        cantidadSolicitada: true,
+        cantidadAprobada: true,
+      },
     });
 
-    const allDelivered = allLotes.every((l) => l.estado === 'ENTREGADO');
-    const someDelivered = allLotes.some((l) => l.estado === 'ENTREGADO');
+    // Get all lote items that have been delivered (from delivered lotes)
+    const allDeliveredLoteItems = await prisma.loteItem.findMany({
+      where: {
+        lote: {
+          requerimientoId: lote.requerimientoId,
+          estado: 'ENTREGADO',
+        },
+      },
+      select: {
+        requerimientoItemId: true,
+        cantidadRecibida: true,
+        cantidadEnviada: true,
+      },
+    });
 
-    // Update requirement status
+    // Calculate total received per item
+    const receivedByItem: Record<string, number> = {};
+    allDeliveredLoteItems.forEach((loteItem) => {
+      if (loteItem.requerimientoItemId) {
+        receivedByItem[loteItem.requerimientoItemId] =
+          (receivedByItem[loteItem.requerimientoItemId] || 0) +
+          (loteItem.cantidadRecibida ?? loteItem.cantidadEnviada);
+      }
+    });
+
+    // Check if all items are fully received
+    let allItemsFullyReceived = true;
+    let someItemsReceived = false;
+
+    for (const item of requerimientoItems) {
+      const requiredQuantity = item.cantidadAprobada ?? item.cantidadSolicitada;
+      const receivedQuantity = receivedByItem[item.id] || 0;
+
+      if (receivedQuantity > 0) {
+        someItemsReceived = true;
+      }
+
+      if (receivedQuantity < requiredQuantity) {
+        allItemsFullyReceived = false;
+      }
+    }
+
+    // Update requirement status based on actual item quantities
     let newStatus = lote.requerimiento.estado;
-    if (allDelivered) {
+    if (allItemsFullyReceived) {
       newStatus = 'ENTREGADO';
-    } else if (someDelivered) {
+    } else if (someItemsReceived) {
       newStatus = 'ENTREGADO_PARCIAL';
     }
 
@@ -111,9 +154,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           estadoNuevo: newStatus,
           requerimientoId: lote.requerimientoId,
           usuarioId: user.id,
-          comentario: allDelivered
-            ? 'Entrega completa confirmada'
-            : `Lote ${lote.numero} entregado - Entrega parcial`,
+          comentario: allItemsFullyReceived
+            ? 'Todos los items han sido recibidos - Entrega completa'
+            : `Lote ${lote.numero} recibido - Pendiente envío de items restantes`,
         },
       });
 
@@ -121,10 +164,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await prisma.notificacion.create({
         data: {
           tipo: 'ENTREGADO',
-          titulo: allDelivered ? 'Requerimiento entregado' : 'Entrega parcial',
-          mensaje: allDelivered
+          titulo: allItemsFullyReceived ? 'Requerimiento entregado' : 'Entrega parcial recibida',
+          mensaje: allItemsFullyReceived
             ? `Tu requerimiento ${lote.requerimiento.numero} ha sido entregado completamente`
-            : `El lote ${lote.numero} de tu requerimiento ${lote.requerimiento.numero} ha sido entregado`,
+            : `Lote ${lote.numero} recibido. Quedan items pendientes de envío en tu requerimiento ${lote.requerimiento.numero}`,
           usuarioId: lote.requerimiento.solicitanteId,
           requerimientoId: lote.requerimientoId,
         },

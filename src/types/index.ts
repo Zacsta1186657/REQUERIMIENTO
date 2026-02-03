@@ -6,6 +6,7 @@
 export type UserRole =
   | 'TECNICO'
   | 'SEGURIDAD'
+  | 'OPERACIONES'
   | 'GERENCIA'
   | 'LOGISTICA'
   | 'ADMINISTRACION'
@@ -168,6 +169,7 @@ export const STATUS_CONFIG: Record<RequerimientoStatus, StatusConfig> = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   TECNICO: 'Técnico',
   SEGURIDAD: 'Seguridad',
+  OPERACIONES: 'Operaciones',
   GERENCIA: 'Gerencia',
   LOGISTICA: 'Logística',
   ADMINISTRACION: 'Administración',

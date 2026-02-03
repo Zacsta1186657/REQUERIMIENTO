@@ -22,13 +22,13 @@ export const STATE_TRANSITIONS: StateTransition[] = [
     from: 'VALIDACION_SEGURIDAD',
     to: 'VALIDACION_GERENCIA',
     action: 'approve',
-    allowedRoles: ['SEGURIDAD', 'ADMIN'],
+    allowedRoles: ['SEGURIDAD', 'OPERACIONES', 'ADMIN'],
   },
   {
     from: 'VALIDACION_SEGURIDAD',
     to: 'RECHAZADO_SEGURIDAD',
     action: 'reject',
-    allowedRoles: ['SEGURIDAD', 'ADMIN'],
+    allowedRoles: ['SEGURIDAD', 'OPERACIONES', 'ADMIN'],
     requiresComment: true,
   },
 
