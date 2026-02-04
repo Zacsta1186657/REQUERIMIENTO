@@ -41,6 +41,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           include: {
             categoria: true,
             unidadMedida: true,
+            validadoPor: {
+              select: { id: true, nombre: true },
+            },
           },
           orderBy: { createdAt: 'asc' },
         },

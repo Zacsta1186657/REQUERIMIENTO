@@ -25,8 +25,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StatusBadge } from "@/components/requerimientos/status-badge";
 import { Timeline } from "@/components/requerimientos/timeline";
 import { LogisticaPanel } from "@/components/requerimientos/logistica-panel";
+import { AdministracionPanel } from "@/components/requerimientos/administracion-panel";
 import { DespachoPanel } from "@/components/requerimientos/despacho-panel";
 import { RecepcionPanel } from "@/components/requerimientos/recepcion-panel";
+import { RecepcionComprasPanel } from "@/components/requerimientos/recepcion-compras-panel";
 import { ArchivosRequerimiento } from "@/components/requerimientos/archivos-requerimiento";
 import { useRequerimientosStore } from "@/stores/requerimientos-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -308,9 +310,11 @@ export default function RequerimientoDetailPage() {
   const canEditItems = (permissions?.canEditItems ?? false) && hasRolePermission;
   const canDeleteItems = (permissions?.canDeleteItems ?? false) && hasRolePermission;
   const canMarkStock = permissions?.canMarkStock ?? false;
+  const canValidatePurchase = permissions?.canValidatePurchase ?? false;
   const canCreateLote = permissions?.canCreateLote ?? false;
   const canDispatch = permissions?.canDispatch ?? false;
   const canConfirmDelivery = permissions?.canConfirmDelivery ?? false;
+  const canConfirmPurchaseReceived = permissions?.canConfirmPurchaseReceived ?? false;
 
   // Convert items for display
   const displayItems = requerimiento.items?.map((item) => ({
@@ -764,12 +768,64 @@ export default function RequerimientoDetailPage() {
             requiereCompra: item.requiereCompra ?? null,
             motivoStock: item.motivoStock ?? null,
             fechaEstimadaCompra: item.fechaEstimadaCompra ?? null,
+            validadoCompra: item.validadoCompra ?? null,
+            compraRecibida: item.compraRecibida ?? null,
             categoria: item.categoria ? { nombre: item.categoria.nombre } : undefined,
             unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
           })) || []}
           estado={requerimiento.estado}
           onUpdate={() => fetchRequerimiento(id)}
           canMarkStock={canMarkStock}
+        />
+
+        {/* Administracion Panel - Purchase validation */}
+        <AdministracionPanel
+          requerimientoId={id}
+          items={requerimiento.items?.map((item) => ({
+            id: item.id,
+            descripcion: item.descripcion,
+            numeroParte: item.numeroParte ?? null,
+            marca: item.marca ?? null,
+            modelo: item.modelo ?? null,
+            cantidadSolicitada: item.cantidadSolicitada,
+            cantidadAprobada: item.cantidadAprobada ?? null,
+            requiereCompra: item.requiereCompra ?? null,
+            fechaEstimadaCompra: item.fechaEstimadaCompra ?? null,
+            motivoStock: item.motivoStock ?? null,
+            validadoCompra: item.validadoCompra ?? null,
+            observacionCompra: item.observacionCompra ?? null,
+            categoria: item.categoria ? { nombre: item.categoria.nombre } : undefined,
+            unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
+            validadoPor: item.validadoPor ?? null,
+          })) || []}
+          estado={requerimiento.estado}
+          onUpdate={() => fetchRequerimiento(id)}
+          canValidatePurchase={canValidatePurchase}
+        />
+
+        {/* Recepcion Compras Panel - Confirm purchased items received in warehouse */}
+        <RecepcionComprasPanel
+          requerimientoId={id}
+          items={requerimiento.items?.map((item) => ({
+            id: item.id,
+            descripcion: item.descripcion,
+            numeroParte: item.numeroParte ?? null,
+            marca: item.marca ?? null,
+            modelo: item.modelo ?? null,
+            cantidadSolicitada: item.cantidadSolicitada,
+            cantidadAprobada: item.cantidadAprobada ?? null,
+            enStock: item.enStock ?? null,
+            requiereCompra: item.requiereCompra ?? null,
+            motivoStock: item.motivoStock ?? null,
+            fechaEstimadaCompra: item.fechaEstimadaCompra ?? null,
+            validadoCompra: item.validadoCompra ?? null,
+            compraRecibida: item.compraRecibida ?? null,
+            categoria: item.categoria ? { nombre: item.categoria.nombre } : undefined,
+            unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
+          })) || []}
+          estado={requerimiento.estado}
+          onUpdate={() => fetchRequerimiento(id)}
+          canConfirmPurchaseReceived={canConfirmPurchaseReceived}
         />
 
         {/* Despacho Panel - Lot creation and dispatch */}
@@ -785,6 +841,10 @@ export default function RequerimientoDetailPage() {
             numeroParte: item.numeroParte ?? undefined,
             marca: item.marca ?? undefined,
             modelo: item.modelo ?? undefined,
+            enStock: item.enStock ?? null,
+            requiereCompra: item.requiereCompra ?? null,
+            validadoCompra: item.validadoCompra ?? null,
+            compraRecibida: item.compraRecibida ?? null,
           })) || []}
           lotes={requerimiento.lotes?.map((lote) => ({
             id: lote.id,

@@ -10,9 +10,11 @@ export interface PermissionConfig {
   canEditItems: boolean;
   canDeleteItems: boolean;
   canMarkStock: boolean;
+  canValidatePurchase: boolean;
   canCreateLote: boolean;
   canDispatch: boolean;
   canConfirmDelivery: boolean;
+  canConfirmPurchaseReceived: boolean;
 }
 
 const DEFAULT_PERMISSIONS: PermissionConfig = {
@@ -25,9 +27,11 @@ const DEFAULT_PERMISSIONS: PermissionConfig = {
   canEditItems: false,
   canDeleteItems: false,
   canMarkStock: false,
+  canValidatePurchase: false,
   canCreateLote: false,
   canDispatch: false,
   canConfirmDelivery: false,
+  canConfirmPurchaseReceived: false,
 };
 
 export function getPermissions(
@@ -50,9 +54,11 @@ export function getPermissions(
       canEditItems: status === 'BORRADOR' || status === 'REVISION_LOGISTICA',
       canDeleteItems: status === 'BORRADOR',
       canMarkStock: status === 'REVISION_LOGISTICA',
-      canCreateLote: status === 'LISTO_DESPACHO',
-      canDispatch: status === 'LISTO_DESPACHO',
+      canValidatePurchase: status === 'EN_COMPRA',
+      canCreateLote: ['LISTO_DESPACHO', 'EN_COMPRA', 'ENVIADO', 'ENTREGADO_PARCIAL'].includes(status),
+      canDispatch: ['LISTO_DESPACHO', 'EN_COMPRA', 'ENVIADO', 'ENTREGADO_PARCIAL'].includes(status),
       canConfirmDelivery: ['ENVIADO', 'ENTREGADO_PARCIAL'].includes(status),
+      canConfirmPurchaseReceived: ['LISTO_DESPACHO', 'EN_COMPRA', 'APROBADO_ADM'].includes(status),
     };
   }
 
@@ -91,17 +97,21 @@ export function getPermissions(
         permissions.canMarkStock = true;
         permissions.canEditItems = true;
       }
-      if (['LISTO_DESPACHO', 'ENVIADO', 'ENTREGADO_PARCIAL'].includes(status)) {
+      if (['LISTO_DESPACHO', 'EN_COMPRA', 'ENVIADO', 'ENTREGADO_PARCIAL'].includes(status)) {
         permissions.canCreateLote = true;
         permissions.canDispatch = true;
       }
-      // LOGISTICA solo puede despachar, NO confirmar recepción
+      // LOGISTICA puede confirmar recepción de compras en almacén
+      if (['LISTO_DESPACHO', 'EN_COMPRA', 'APROBADO_ADM'].includes(status)) {
+        permissions.canConfirmPurchaseReceived = true;
+      }
       break;
 
     case 'ADMINISTRACION':
       if (status === 'EN_COMPRA') {
         permissions.canApprove = true;
         permissions.canReject = true;
+        permissions.canValidatePurchase = true;
       }
       break;
 

@@ -14,6 +14,11 @@ export interface RequerimientoItem {
   requiereCompra: boolean | null;
   motivoStock: string | null;
   fechaEstimadaCompra: string | null;
+  validadoCompra: boolean | null;
+  observacionCompra: string | null;
+  compraRecibida: boolean | null;
+  fechaRecepcionCompra: string | null;
+  validadoPor: { id: string; nombre: string } | null;
   categoriaId: string;
   unidadMedidaId: string;
   categoria: { id: string; nombre: string };
@@ -30,9 +35,11 @@ export interface RequerimientoPermissions {
   canEditItems: boolean;
   canDeleteItems: boolean;
   canMarkStock: boolean;
+  canValidatePurchase: boolean;
   canCreateLote: boolean;
   canDispatch: boolean;
   canConfirmDelivery: boolean;
+  canConfirmPurchaseReceived: boolean;
 }
 
 export interface LoteItem {

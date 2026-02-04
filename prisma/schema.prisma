@@ -24,6 +24,7 @@ model User {
   modificacionesItems ModificacionItem[]
   notificaciones      Notificacion[]
   requerimientos      Requerimiento[]    @relation("Solicitante")
+  itemsValidados      RequerimientoItem[] @relation("ItemsValidados")
 
   @@map("users")
 }
@@ -151,6 +152,12 @@ model RequerimientoItem {
   requiereCompra      Boolean?
   motivoStock         String?
   fechaEstimadaCompra DateTime?
+  validadoCompra      Boolean?
+  validadoPorId       String?
+  fechaValidacion     DateTime?
+  observacionCompra   String?
+  compraRecibida      Boolean?
+  fechaRecepcionCompra DateTime?
   eliminado           Boolean            @default(false)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -164,6 +171,7 @@ model RequerimientoItem {
   producto            Producto?          @relation(fields: [productoId], references: [id])
   requerimiento       Requerimiento      @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
   unidadMedida        UnidadMedida       @relation(fields: [unidadMedidaId], references: [id])
+  validadoPor         User?              @relation("ItemsValidados", fields: [validadoPorId], references: [id])
 
   @@index([requerimientoId])
   @@map("requerimiento_items")

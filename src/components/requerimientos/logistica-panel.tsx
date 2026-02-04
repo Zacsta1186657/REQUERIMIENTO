@@ -47,6 +47,8 @@ interface Item {
   requiereCompra: boolean | null;
   motivoStock: string | null;
   fechaEstimadaCompra: string | null;
+  validadoCompra: boolean | null;
+  compraRecibida: boolean | null;
   categoria?: { nombre: string };
   unidadMedida?: { abreviatura: string };
 }
@@ -296,16 +298,42 @@ export function LogisticaPanel({
         return;
       }
 
-      // Luego procesar según la acción
+      // Para flujo mixto, usar el endpoint especial que crea lote automatico
+      if (action === "mixto") {
+        const itemsEnStockIds = Object.entries(stockStatus)
+          .filter(([, status]) => status.enStock)
+          .map(([id]) => id);
+
+        const itemsCompraIds = Object.entries(stockStatus)
+          .filter(([, status]) => status.requiereCompra)
+          .map(([id]) => id);
+
+        const response = await fetch(`/api/requerimientos/${requerimientoId}/process-mixed`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemsEnStock: itemsEnStockIds,
+            itemsCompra: itemsCompraIds,
+          }),
+        });
+
+        if (response.ok) {
+          setFilesToUpload([]);
+          onUpdate();
+        } else {
+          const data = await response.json();
+          setError(data.error || "Error al procesar flujo mixto");
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      // Luego procesar según la acción (stock puro o compra pura)
       let nextStatus = "";
       if (action === "stock") {
         nextStatus = "LISTO_DESPACHO";
       } else if (action === "compra") {
         nextStatus = "EN_COMPRA";
-      } else {
-        // Mixto: algunos en stock, otros requieren compra
-        const hasCompra = Object.values(stockStatus).some((s) => s.requiereCompra);
-        nextStatus = hasCompra ? "EN_COMPRA" : "LISTO_DESPACHO";
       }
 
       const response = await fetch(`/api/requerimientos/${requerimientoId}/process`, {
@@ -322,7 +350,7 @@ export function LogisticaPanel({
         setError(data.error || "Error al procesar");
       }
     } catch (err) {
-      setError("Error de conexión");
+      setError("Error de conexion");
     } finally {
       setIsProcessing(false);
     }
@@ -609,13 +637,14 @@ export function LogisticaPanel({
                 onClick={() => handleProcess("mixto")}
                 disabled={isProcessing}
                 variant="outline"
+                className="border-purple-300 text-purple-600 hover:bg-purple-50"
               >
                 {isProcessing ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
-                Procesar Mixto (Stock + Compra)
+                Despachar Stock + Enviar Compras a Validacion
               </Button>
             )}
           </div>

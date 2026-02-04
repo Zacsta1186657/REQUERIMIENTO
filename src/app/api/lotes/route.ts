@@ -60,9 +60,9 @@ export async function POST(request: NextRequest) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    const validStates = ['LISTO_DESPACHO', 'ENVIADO', 'ENTREGADO_PARCIAL'];
+    const validStates = ['LISTO_DESPACHO', 'EN_COMPRA', 'ENVIADO', 'ENTREGADO_PARCIAL'];
     if (!validStates.includes(requerimiento.estado)) {
-      return errorResponse('El requerimiento debe estar en estado Listo para Despacho, Enviado o Entregado Parcial', 400);
+      return errorResponse('El requerimiento debe estar en estado Listo para Despacho, En Compra, Enviado o Entregado Parcial', 400);
     }
 
     // Validate items exist and belong to this requirement

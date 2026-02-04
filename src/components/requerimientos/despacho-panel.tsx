@@ -24,6 +24,7 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
+  ShoppingCart,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -37,6 +38,10 @@ interface Item {
   numeroParte?: string;
   marca?: string;
   modelo?: string;
+  enStock?: boolean | null;
+  requiereCompra?: boolean | null;
+  validadoCompra?: boolean | null;
+  compraRecibida?: boolean | null;
 }
 
 interface Lote {
@@ -92,34 +97,60 @@ export function DespachoPanel({
     });
   });
 
-  // Items pendientes de envío
-  const itemsPendientes = items.filter((item) => {
+  // Helper: verificar si un item es despachable
+  // Un item es despachable si:
+  // 1. Está en stock (enStock === true), O
+  // 2. Fue marcado para compra, validado por administración y ya llegó al almacén
+  const esItemDespachable = (item: Item) => {
+    const estaEnStock = item.enStock === true;
+    const compraListaParaDespacho = item.requiereCompra === true &&
+                                     item.validadoCompra === true &&
+                                     item.compraRecibida === true;
+    return estaEnStock || compraListaParaDespacho;
+  };
+
+  // Filtrar solo items despachables
+  const itemsDespachables = items.filter(esItemDespachable);
+
+  // Items pendientes de envío (solo despachables)
+  const itemsPendientes = itemsDespachables.filter((item) => {
     const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
     const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
     return cantidadEnviada < cantidadTotal;
   });
 
-  // Calcular estadísticas de envío
-  const itemsCompletamenteEnviados = items.filter((item) => {
+  // Calcular estadísticas de envío (solo sobre items despachables)
+  const itemsCompletamenteEnviados = itemsDespachables.filter((item) => {
     const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
     const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
     return cantidadEnviada >= cantidadTotal;
   }).length;
 
-  const itemsParcialmenteEnviados = items.filter((item) => {
+  const itemsParcialmenteEnviados = itemsDespachables.filter((item) => {
     const cantidadTotal = item.cantidadAprobada || item.cantidadSolicitada;
     const cantidadEnviada = cantidadesEnviadas[item.id] || 0;
     return cantidadEnviada > 0 && cantidadEnviada < cantidadTotal;
   }).length;
 
-  // Calcular totales de cantidades
-  const totalCantidad = items.reduce((sum, item) => sum + (item.cantidadAprobada || item.cantidadSolicitada), 0);
+  // Calcular totales de cantidades (solo despachables)
+  const totalCantidad = itemsDespachables.reduce((sum, item) => sum + (item.cantidadAprobada || item.cantidadSolicitada), 0);
   const totalEnviado = Object.values(cantidadesEnviadas).reduce((sum, cant) => sum + cant, 0);
   const porcentajeEnvio = totalCantidad > 0 ? Math.round((totalEnviado / totalCantidad) * 100) : 0;
 
   // Determinar estado general del envío
   const hayEnvioParcial = totalEnviado > 0 && totalEnviado < totalCantidad;
   const envioCompleto = totalEnviado >= totalCantidad;
+
+  // Items en proceso de compra (no despachables aún)
+  const itemsEnProcesoCompra = items.filter((item) => {
+    // Items que requieren compra pero aún no están listos para despacho
+    if (item.requiereCompra !== true) return false;
+    // Pendiente de validación de administración
+    if (item.validadoCompra !== true) return true;
+    // Validado pero pendiente de recepción en almacén
+    if (item.compraRecibida !== true) return true;
+    return false;
+  });
 
   const handleItemSelect = (itemId: string, cantidad: number) => {
     if (cantidad > 0) {
@@ -273,6 +304,49 @@ export function DespachoPanel({
             </div>
           </div>
         </div>
+
+        {/* Items en proceso de compra (no despachables aún) */}
+        {itemsEnProcesoCompra.length > 0 && (
+          <div className="p-4 rounded-lg border-2 border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20">
+            <div className="flex items-center gap-2 mb-3">
+              <ShoppingCart className="h-5 w-5 text-blue-600" />
+              <span className="font-semibold text-sm text-blue-700 dark:text-blue-400">
+                Items en Proceso de Compra
+              </span>
+              <Badge variant="outline" className="ml-auto bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                {itemsEnProcesoCompra.length} item{itemsEnProcesoCompra.length > 1 ? "s" : ""}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Estos items no están disponibles para despacho. Están pendientes de validación de compra o de recepción en almacén.
+            </p>
+            <div className="space-y-2">
+              {itemsEnProcesoCompra.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border">
+                  <div className="flex-1">
+                    <span className="text-sm font-medium">{item.descripcion}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      {item.validadoCompra !== true && (
+                        <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          Pendiente validación ADM
+                        </Badge>
+                      )}
+                      {item.validadoCompra === true && item.compraRecibida !== true && (
+                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                          Pendiente recepción en almacén
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm">
+                    <span className="font-semibold">{item.cantidadAprobada || item.cantidadSolicitada}</span>
+                    <span className="text-muted-foreground ml-1">{item.unidadMedida?.abreviatura}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Lista de Items Pendientes con detalle */}
         {itemsPendientes.length > 0 && !showCreateLote && (
