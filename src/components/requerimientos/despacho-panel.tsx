@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { ITEM_STATUS_CONFIG, type ItemStatus, isDispatchable } from "@/lib/workflow/item-transitions";
+
 interface Item {
   id: string;
   descripcion: string;
@@ -38,10 +40,7 @@ interface Item {
   numeroParte?: string;
   marca?: string;
   modelo?: string;
-  enStock?: boolean | null;
-  requiereCompra?: boolean | null;
-  validadoCompra?: boolean | null;
-  compraRecibida?: boolean | null;
+  estadoItem: ItemStatus;
 }
 
 interface Lote {
@@ -97,20 +96,9 @@ export function DespachoPanel({
     });
   });
 
-  // Helper: verificar si un item es despachable
-  // Un item es despachable si:
-  // 1. Está en stock (enStock === true), O
-  // 2. Fue marcado para compra, validado por administración y ya llegó al almacén
-  const esItemDespachable = (item: Item) => {
-    const estaEnStock = item.enStock === true;
-    const compraListaParaDespacho = item.requiereCompra === true &&
-                                     item.validadoCompra === true &&
-                                     item.compraRecibida === true;
-    return estaEnStock || compraListaParaDespacho;
-  };
-
-  // Filtrar solo items despachables
-  const itemsDespachables = items.filter(esItemDespachable);
+  // Filtrar solo items despachables usando el estadoItem
+  // Un item es despachable si su estado es LISTO_PARA_DESPACHO o DESPACHO_PARCIAL
+  const itemsDespachables = items.filter((item) => isDispatchable(item.estadoItem));
 
   // Items pendientes de envío (solo despachables)
   const itemsPendientes = itemsDespachables.filter((item) => {
@@ -142,14 +130,9 @@ export function DespachoPanel({
   const envioCompleto = totalEnviado >= totalCantidad;
 
   // Items en proceso de compra (no despachables aún)
+  // Incluye: REQUIERE_COMPRA, PENDIENTE_VALIDACION_ADMIN, APROBADO_COMPRA
   const itemsEnProcesoCompra = items.filter((item) => {
-    // Items que requieren compra pero aún no están listos para despacho
-    if (item.requiereCompra !== true) return false;
-    // Pendiente de validación de administración
-    if (item.validadoCompra !== true) return true;
-    // Validado pero pendiente de recepción en almacén
-    if (item.compraRecibida !== true) return true;
-    return false;
+    return ['REQUIERE_COMPRA', 'PENDIENTE_VALIDACION_ADMIN', 'APROBADO_COMPRA'].includes(item.estadoItem);
   });
 
   const handleItemSelect = (itemId: string, cantidad: number) => {
@@ -233,7 +216,13 @@ export function DespachoPanel({
     return null;
   }
 
-  if (estado !== "LISTO_DESPACHO" && estado !== "ENVIADO" && estado !== "ENTREGADO_PARCIAL") {
+  // IMPORTANTE: Mostrar el panel si hay items despachables, sin importar el estado del requerimiento
+  // Esto permite despachar items en stock mientras otros están en proceso de compra
+  const hayItemsDespachables = itemsDespachables.length > 0;
+  const hayLotes = lotes.length > 0;
+
+  // No mostrar si no hay items despachables ni lotes existentes
+  if (!hayItemsDespachables && !hayLotes) {
     return null;
   }
 
@@ -326,16 +315,12 @@ export function DespachoPanel({
                   <div className="flex-1">
                     <span className="text-sm font-medium">{item.descripcion}</span>
                     <div className="flex items-center gap-2 mt-1">
-                      {item.validadoCompra !== true && (
-                        <Badge variant="outline" className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                          Pendiente validación ADM
-                        </Badge>
-                      )}
-                      {item.validadoCompra === true && item.compraRecibida !== true && (
-                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                          Pendiente recepción en almacén
-                        </Badge>
-                      )}
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${ITEM_STATUS_CONFIG[item.estadoItem].bgColor} ${ITEM_STATUS_CONFIG[item.estadoItem].color}`}
+                      >
+                        {ITEM_STATUS_CONFIG[item.estadoItem].label}
+                      </Badge>
                     </div>
                   </div>
                   <div className="text-right text-sm">

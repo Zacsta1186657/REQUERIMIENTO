@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { RequerimientoStatus } from '@/types';
+import type { RequerimientoStatus, ItemStatus } from '@/types';
 
 export interface RequerimientoItem {
   id: string;
@@ -18,6 +18,7 @@ export interface RequerimientoItem {
   observacionCompra: string | null;
   compraRecibida: boolean | null;
   fechaRecepcionCompra: string | null;
+  estadoItem: ItemStatus;
   validadoPor: { id: string; nombre: string } | null;
   categoriaId: string;
   unidadMedidaId: string;
@@ -197,6 +198,9 @@ export const useRequerimientosStore = create<RequerimientosState>((set, get) => 
       const response = await fetch(`/api/requerimientos?${params}`);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+        }
         throw new Error('Error al cargar requerimientos');
       }
 
@@ -222,6 +226,15 @@ export const useRequerimientosStore = create<RequerimientosState>((set, get) => 
       const response = await fetch(`/api/requerimientos/${id}`);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+        }
+        if (response.status === 403) {
+          throw new Error('No tienes permiso para ver este requerimiento.');
+        }
+        if (response.status === 404) {
+          throw new Error('Requerimiento no encontrado.');
+        }
         throw new Error('Error al cargar requerimiento');
       }
 

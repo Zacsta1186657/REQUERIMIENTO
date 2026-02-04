@@ -10,6 +10,7 @@ import {
 } from '@/lib/api-utils';
 import { z } from 'zod';
 import { RequerimientoStatus } from '@prisma/client';
+import { calculateRequerimientoStatus } from '@/lib/workflow/item-transitions';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -24,6 +25,7 @@ const validatePurchaseSchema = z.object({
 });
 
 // PUT /api/requerimientos/[id]/items/validate-purchase
+// Permite a Administración validar items individuales que están en PENDIENTE_VALIDACION_ADMIN
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const user = await getCurrentUser();
@@ -54,7 +56,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         items: {
           where: {
             eliminado: false,
-            requiereCompra: true
+            estadoItem: 'PENDIENTE_VALIDACION_ADMIN', // Solo items pendientes de validación
           },
         },
         solicitante: {
@@ -67,27 +69,27 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    // Must be in EN_COMPRA status
-    if (requerimiento.estado !== 'EN_COMPRA') {
-      return errorResponse('El requerimiento debe estar en estado En Compra', 400);
-    }
-
-    // Validate that all items to validate belong to this requirement
+    // Validate that all items to validate belong to this requirement and are pending
     const itemIds = items.map((i) => i.itemId);
-    const purchaseItemIds = requerimiento.items.map((i) => i.id);
+    const pendingItemIds = requerimiento.items.map((i) => i.id);
 
-    const invalidItems = itemIds.filter((id) => !purchaseItemIds.includes(id));
+    const invalidItems = itemIds.filter((itemId) => !pendingItemIds.includes(itemId));
     if (invalidItems.length > 0) {
-      return errorResponse('Algunos items no pertenecen a este requerimiento o no requieren compra', 400);
+      return errorResponse(
+        'Algunos items no pertenecen a este requerimiento o no están pendientes de validación',
+        400
+      );
     }
 
-    // Update each item's validation status
+    // Update each item's status and validation fields
     const now = new Date();
     await Promise.all(
       items.map((item) =>
         prisma.requerimientoItem.update({
           where: { id: item.itemId },
           data: {
+            // Actualizar estadoItem según la validación
+            estadoItem: item.validado ? 'APROBADO_COMPRA' : 'RECHAZADO_COMPRA',
             validadoCompra: item.validado,
             validadoPorId: user.id,
             fechaValidacion: now,
@@ -97,40 +99,37 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       )
     );
 
-    // Check if all purchase items have been validated
-    const updatedItems = await prisma.requerimientoItem.findMany({
-      where: {
-        requerimientoId: id,
-        eliminado: false,
-        requiereCompra: true,
-      },
+    // Create modification history for each item
+    await Promise.all(
+      items.map((item) =>
+        prisma.modificacionItem.create({
+          data: {
+            requerimientoItemId: item.itemId,
+            usuarioId: user.id,
+            campo: 'estadoItem',
+            valorAnterior: 'PENDIENTE_VALIDACION_ADMIN',
+            valorNuevo: item.validado ? 'APROBADO_COMPRA' : 'RECHAZADO_COMPRA',
+            motivo: item.validado
+              ? 'Compra aprobada por Administración'
+              : `Compra rechazada por Administración${item.observacion ? ': ' + item.observacion : ''}`,
+          },
+        })
+      )
+    );
+
+    // Get all items to calculate new requerimiento status
+    const allItems = await prisma.requerimientoItem.findMany({
+      where: { requerimientoId: id, eliminado: false },
     });
 
-    const allValidated = updatedItems.every((item) => item.validadoCompra !== null);
-    const allApproved = updatedItems.every((item) => item.validadoCompra === true);
-    const allRejected = updatedItems.every((item) => item.validadoCompra === false);
+    const itemStatuses = allItems.map((i) => i.estadoItem);
+    const suggestedStatus = calculateRequerimientoStatus(itemStatuses) as RequerimientoStatus;
 
-    let newStatus: RequerimientoStatus = requerimiento.estado;
-    let statusComment = '';
-
-    if (allValidated) {
-      if (allApproved) {
-        newStatus = 'LISTO_DESPACHO';
-        statusComment = 'Todas las compras han sido validadas y aprobadas';
-      } else if (allRejected) {
-        newStatus = 'RECHAZADO_ADM';
-        statusComment = 'Todas las compras han sido rechazadas';
-      } else {
-        // Mixed: some approved, some rejected
-        // Move to LISTO_DESPACHO for approved items
-        newStatus = 'LISTO_DESPACHO';
-        statusComment = 'Compras validadas parcialmente - items aprobados listos para despacho';
-      }
-
-      // Update requerimiento status
+    // Update requerimiento status if changed
+    if (suggestedStatus !== requerimiento.estado) {
       await prisma.requerimiento.update({
         where: { id },
-        data: { estado: newStatus },
+        data: { estado: suggestedStatus },
       });
 
       // Create history entry
@@ -138,43 +137,44 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         data: {
           requerimientoId: id,
           usuarioId: user.id,
-          estadoAnterior: 'EN_COMPRA',
-          estadoNuevo: newStatus,
-          comentario: statusComment,
+          estadoAnterior: requerimiento.estado,
+          estadoNuevo: suggestedStatus,
+          comentario: `Validación de compras: ${items.filter(i => i.validado).length} aprobados, ${items.filter(i => !i.validado).length} rechazados`,
         },
       });
+    }
 
-      // Notify requester
-      await prisma.notificacion.create({
-        data: {
-          tipo: newStatus === 'RECHAZADO_ADM' ? 'RECHAZADO' : 'ESTADO_CAMBIO',
-          titulo: newStatus === 'RECHAZADO_ADM'
-            ? 'Compras rechazadas'
-            : 'Compras validadas',
-          mensaje: statusComment,
-          usuarioId: requerimiento.solicitanteId,
-          requerimientoId: id,
-        },
+    // Notify requester about the validation
+    const approvedCount = items.filter(i => i.validado).length;
+    const rejectedCount = items.filter(i => !i.validado).length;
+
+    await prisma.notificacion.create({
+      data: {
+        tipo: rejectedCount > 0 ? 'RECHAZADO' : 'ESTADO_CAMBIO',
+        titulo: 'Validación de compras procesada',
+        mensaje: `${approvedCount} item(s) aprobado(s), ${rejectedCount} item(s) rechazado(s) del requerimiento ${requerimiento.numero}`,
+        usuarioId: requerimiento.solicitanteId,
+        requerimientoId: id,
+      },
+    });
+
+    // Notify LOGISTICA if there are approved items
+    if (approvedCount > 0) {
+      const logisticaUsers = await prisma.user.findMany({
+        where: { rol: 'LOGISTICA', activo: true },
+        select: { id: true },
       });
 
-      // If approved, notify LOGISTICA for dispatch
-      if (newStatus === 'LISTO_DESPACHO') {
-        const logisticaUsers = await prisma.user.findMany({
-          where: { rol: 'LOGISTICA', activo: true },
-          select: { id: true },
+      if (logisticaUsers.length > 0) {
+        await prisma.notificacion.createMany({
+          data: logisticaUsers.map((u) => ({
+            tipo: 'ESTADO_CAMBIO' as const,
+            titulo: 'Compras aprobadas - Pendiente recepción',
+            mensaje: `${approvedCount} item(s) del requerimiento ${requerimiento.numero} han sido aprobados para compra. Confirmar recepción cuando lleguen al almacén.`,
+            usuarioId: u.id,
+            requerimientoId: id,
+          })),
         });
-
-        if (logisticaUsers.length > 0) {
-          await prisma.notificacion.createMany({
-            data: logisticaUsers.map((u) => ({
-              tipo: 'LISTO_DESPACHO' as const,
-              titulo: 'Requerimiento listo para despacho',
-              mensaje: `El requerimiento ${requerimiento.numero} tiene items listos para despachar`,
-              usuarioId: u.id,
-              requerimientoId: id,
-            })),
-          });
-        }
       }
     }
 
@@ -209,7 +209,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       },
     });
 
-    return NextResponse.json(updated);
+    return NextResponse.json({
+      message: `${approvedCount} item(s) aprobado(s), ${rejectedCount} item(s) rechazado(s)`,
+      requerimiento: updated,
+    });
   } catch (error) {
     console.error('Error validating purchase:', error);
     return serverErrorResponse();

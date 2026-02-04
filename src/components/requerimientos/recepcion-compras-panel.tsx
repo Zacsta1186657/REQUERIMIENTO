@@ -18,6 +18,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useState } from "react";
+import { type ItemStatus, needsWarehouseReception } from "@/lib/workflow/item-transitions";
 
 interface Item {
   id: string;
@@ -27,12 +28,9 @@ interface Item {
   modelo: string | null;
   cantidadSolicitada: number;
   cantidadAprobada: number | null;
-  enStock: boolean | null;
-  requiereCompra: boolean | null;
+  estadoItem: ItemStatus;
   motivoStock: string | null;
   fechaEstimadaCompra: string | null;
-  validadoCompra: boolean | null;
-  compraRecibida: boolean | null;
   categoria?: { nombre: string };
   unidadMedida?: { abreviatura: string };
 }
@@ -57,11 +55,9 @@ export function RecepcionComprasPanel({
   const [error, setError] = useState<string | null>(null);
 
   // Filtrar items que fueron validados para compra pero aún no han llegado al almacén
+  // Son items con estadoItem === 'APROBADO_COMPRA'
   const itemsPendientesRecepcion = items.filter(
-    (item) =>
-      item.requiereCompra === true &&
-      item.validadoCompra === true &&
-      item.compraRecibida !== true
+    (item) => needsWarehouseReception(item.estadoItem)
   );
 
   const handleItemSelect = (itemId: string, checked: boolean) => {
@@ -124,10 +120,8 @@ export function RecepcionComprasPanel({
     return null;
   }
 
-  // Solo mostrar en estados donde tiene sentido confirmar recepción de compras
-  if (estado !== "LISTO_DESPACHO" && estado !== "EN_COMPRA" && estado !== "APROBADO_ADM") {
-    return null;
-  }
+  // Mostrar en cualquier estado donde haya items con compra aprobada pendientes de recepción
+  // El control real se hace por el estadoItem de cada item (APROBADO_COMPRA)
 
   const selectedCount = Object.values(selectedItems).filter(Boolean).length;
   const allSelected =

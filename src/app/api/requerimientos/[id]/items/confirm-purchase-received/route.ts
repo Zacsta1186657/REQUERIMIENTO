@@ -50,8 +50,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         items: {
           where: {
             eliminado: false,
-            requiereCompra: true,
-            validadoCompra: true,
+            estadoItem: 'APROBADO_COMPRA', // Solo items que están esperando recepción
           },
         },
         solicitante: {
@@ -64,45 +63,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    // Must be in LISTO_DESPACHO, EN_COMPRA, or APROBADO_ADM status
-    const validStatuses = ['LISTO_DESPACHO', 'EN_COMPRA', 'APROBADO_ADM'];
-    if (!validStatuses.includes(requerimiento.estado)) {
-      return errorResponse(
-        'El requerimiento debe estar en estado Listo para Despacho, En Compra o Aprobado',
-        400
-      );
-    }
-
-    // Validate that all items to confirm belong to this requirement and are valid for this operation
+    // Validate that all items to confirm belong to this requirement and have correct status
     const validItemIds = requerimiento.items.map((i) => i.id);
     const invalidItems = itemIds.filter((itemId) => !validItemIds.includes(itemId));
 
     if (invalidItems.length > 0) {
       return errorResponse(
-        'Algunos items no pertenecen a este requerimiento, no requieren compra o no han sido validados',
+        'Algunos items no pertenecen a este requerimiento o no están en estado APROBADO_COMPRA',
         400
       );
     }
 
-    // Check that items are not already marked as received
-    const alreadyReceived = requerimiento.items.filter(
-      (item) => itemIds.includes(item.id) && item.compraRecibida === true
-    );
-
-    if (alreadyReceived.length > 0) {
-      return errorResponse(
-        'Algunos items ya fueron marcados como recibidos',
-        400
-      );
-    }
-
-    // Update each item's compraRecibida status
+    // Update each item's status to LISTO_PARA_DESPACHO
     const now = new Date();
     await Promise.all(
       itemIds.map((itemId) =>
         prisma.requerimientoItem.update({
           where: { id: itemId },
           data: {
+            estadoItem: 'LISTO_PARA_DESPACHO',
             compraRecibida: true,
             fechaRecepcionCompra: now,
           },
@@ -117,9 +96,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           data: {
             requerimientoItemId: itemId,
             usuarioId: user.id,
-            campo: 'compraRecibida',
-            valorAnterior: 'false',
-            valorNuevo: 'true',
+            campo: 'estadoItem',
+            valorAnterior: 'APROBADO_COMPRA',
+            valorNuevo: 'LISTO_PARA_DESPACHO',
             motivo: 'Confirmación de recepción de compra en almacén',
           },
         })

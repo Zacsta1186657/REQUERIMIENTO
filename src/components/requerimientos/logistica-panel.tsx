@@ -11,7 +11,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -26,14 +25,15 @@ import {
   Loader2,
   CheckCircle,
   Truck,
-  Save,
   Upload,
   FileText,
   X,
   Paperclip,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useRef, useCallback } from "react";
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE, formatFileSize } from "@/lib/file-constants";
+import { ITEM_STATUS_CONFIG, type ItemStatus } from "@/lib/workflow/item-transitions";
 
 interface Item {
   id: string;
@@ -43,12 +43,9 @@ interface Item {
   modelo: string | null;
   cantidadSolicitada: number;
   cantidadAprobada: number | null;
-  enStock: boolean | null;
-  requiereCompra: boolean | null;
+  estadoItem: ItemStatus;
   motivoStock: string | null;
   fechaEstimadaCompra: string | null;
-  validadoCompra: boolean | null;
-  compraRecibida: boolean | null;
   categoria?: { nombre: string };
   unidadMedida?: { abreviatura: string };
 }
@@ -61,9 +58,8 @@ interface LogisticaPanelProps {
   canMarkStock: boolean;
 }
 
-interface ItemStockStatus {
-  enStock: boolean;
-  requiereCompra: boolean;
+interface ItemClassification {
+  clasificacion: 'stock' | 'compra' | null;
   cantidadAprobada: number;
   motivoStock: string;
   fechaEstimadaCompra: string;
@@ -91,12 +87,17 @@ export function LogisticaPanel({
   onUpdate,
   canMarkStock,
 }: LogisticaPanelProps) {
-  const [stockStatus, setStockStatus] = useState<Record<string, ItemStockStatus>>(() => {
-    const initial: Record<string, ItemStockStatus> = {};
-    items.forEach((item) => {
+  // Filtrar solo ítems pendientes de clasificación
+  const itemsPendientes = items.filter(
+    (item) => item.estadoItem === 'PENDIENTE_CLASIFICACION'
+  );
+
+  // Estado local para las clasificaciones
+  const [classifications, setClassifications] = useState<Record<string, ItemClassification>>(() => {
+    const initial: Record<string, ItemClassification> = {};
+    itemsPendientes.forEach((item) => {
       initial[item.id] = {
-        enStock: item.enStock ?? false,
-        requiereCompra: item.requiereCompra ?? false,
+        clasificacion: null,
         cantidadAprobada: item.cantidadAprobada ?? item.cantidadSolicitada,
         motivoStock: item.motivoStock || "",
         fechaEstimadaCompra: item.fechaEstimadaCompra || "",
@@ -104,7 +105,7 @@ export function LogisticaPanel({
     });
     return initial;
   });
-  const [isSaving, setIsSaving] = useState(false);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -208,161 +209,130 @@ export function LogisticaPanel({
     }
   };
 
-  const handleStockChange = (itemId: string, field: keyof ItemStockStatus, value: boolean | number | string) => {
-    const item = items.find((i) => i.id === itemId);
-    setStockStatus((prev) => ({
+  const handleClassificationChange = (itemId: string, clasificacion: 'stock' | 'compra' | null) => {
+    setClassifications((prev) => ({
       ...prev,
       [itemId]: {
         ...prev[itemId],
-        [field]: value,
-        // Si marca en stock, desmarcar requiere compra y aprobar cantidad total
-        ...(field === "enStock" && value === true
-          ? { requiereCompra: false, cantidadAprobada: item?.cantidadSolicitada || prev[itemId].cantidadAprobada }
-          : {}),
-        // Si marca requiere compra, desmarcar en stock y aprobar cantidad total
-        ...(field === "requiereCompra" && value === true
-          ? { enStock: false, cantidadAprobada: item?.cantidadSolicitada || prev[itemId].cantidadAprobada }
-          : {}),
+        clasificacion,
       },
     }));
   };
 
-  const handleSaveItem = async (itemId: string) => {
-    setIsSaving(true);
-    setError(null);
-    try {
-      const status = stockStatus[itemId];
-      const response = await fetch(`/api/requerimientos/${requerimientoId}/items/${itemId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enStock: status.enStock,
-          requiereCompra: status.requiereCompra,
-          cantidadAprobada: status.cantidadAprobada,
-          motivoStock: status.motivoStock || null,
-          fechaEstimadaCompra: status.fechaEstimadaCompra || null,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error || "Error al guardar");
-      } else {
-        onUpdate();
-      }
-    } catch (err) {
-      setError("Error de conexión");
-    } finally {
-      setIsSaving(false);
-    }
+  const handleFieldChange = (itemId: string, field: keyof ItemClassification, value: string | number) => {
+    setClassifications((prev) => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value,
+      },
+    }));
   };
 
-  const handleSaveAll = async () => {
-    setIsSaving(true);
-    setError(null);
-    try {
-      for (const itemId of Object.keys(stockStatus)) {
-        const status = stockStatus[itemId];
-        await fetch(`/api/requerimientos/${requerimientoId}/items/${itemId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            enStock: status.enStock,
-            requiereCompra: status.requiereCompra,
-            cantidadAprobada: status.cantidadAprobada,
-            motivoStock: status.motivoStock || null,
-            fechaEstimadaCompra: status.fechaEstimadaCompra || null,
-          }),
-        });
-      }
-      onUpdate();
-    } catch (err) {
-      setError("Error al guardar los cambios");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleProcess = async (action: "stock" | "compra" | "mixto") => {
+  const handleProcess = async () => {
     setError(null);
     setIsProcessing(true);
 
     try {
-      // Primero guardar todos los items
-      await handleSaveAll();
+      // Validar que todos los ítems estén clasificados
+      const itemsSinClasificar = Object.entries(classifications).filter(
+        ([, c]) => c.clasificacion === null
+      );
 
-      // Subir archivos
+      if (itemsSinClasificar.length > 0) {
+        setError(`Hay ${itemsSinClasificar.length} ítem(s) sin clasificar`);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Subir archivos primero
       const filesUploaded = await uploadFiles();
       if (!filesUploaded) {
         setIsProcessing(false);
         return;
       }
 
-      // Para flujo mixto, usar el endpoint especial que crea lote automatico
-      if (action === "mixto") {
-        const itemsEnStockIds = Object.entries(stockStatus)
-          .filter(([, status]) => status.enStock)
-          .map(([id]) => id);
+      // Preparar datos para el endpoint
+      const itemsData = Object.entries(classifications).map(([itemId, c]) => ({
+        itemId,
+        nuevoEstado: c.clasificacion === 'stock' ? 'EN_STOCK' : 'REQUIERE_COMPRA',
+        cantidadAprobada: c.cantidadAprobada,
+        motivoStock: c.motivoStock || null,
+        fechaEstimadaCompra: c.fechaEstimadaCompra || null,
+      }));
 
-        const itemsCompraIds = Object.entries(stockStatus)
-          .filter(([, status]) => status.requiereCompra)
-          .map(([id]) => id);
-
-        const response = await fetch(`/api/requerimientos/${requerimientoId}/process-mixed`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            itemsEnStock: itemsEnStockIds,
-            itemsCompra: itemsCompraIds,
-          }),
-        });
-
-        if (response.ok) {
-          setFilesToUpload([]);
-          onUpdate();
-        } else {
-          const data = await response.json();
-          setError(data.error || "Error al procesar flujo mixto");
-        }
-        setIsProcessing(false);
-        return;
-      }
-
-      // Luego procesar según la acción (stock puro o compra pura)
-      let nextStatus = "";
-      if (action === "stock") {
-        nextStatus = "LISTO_DESPACHO";
-      } else if (action === "compra") {
-        nextStatus = "EN_COMPRA";
-      }
-
-      const response = await fetch(`/api/requerimientos/${requerimientoId}/process`, {
+      // Llamar al endpoint para clasificar ítems
+      const response = await fetch(`/api/requerimientos/${requerimientoId}/items/classify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: nextStatus }),
+        body: JSON.stringify({ items: itemsData }),
       });
 
       if (response.ok) {
-        setFilesToUpload([]); // Clear uploaded files
+        setFilesToUpload([]);
         onUpdate();
       } else {
         const data = await response.json();
-        setError(data.error || "Error al procesar");
+        setError(data.error || "Error al procesar clasificación");
       }
     } catch (err) {
-      setError("Error de conexion");
+      setError("Error de conexión");
     } finally {
       setIsProcessing(false);
     }
   };
 
   // Calcular resumen
-  const itemsEnStock = Object.values(stockStatus).filter((s) => s.enStock).length;
-  const itemsCompra = Object.values(stockStatus).filter((s) => s.requiereCompra).length;
-  const itemsSinClasificar = items.length - itemsEnStock - itemsCompra;
+  const itemsEnStock = Object.values(classifications).filter((c) => c.clasificacion === 'stock').length;
+  const itemsCompra = Object.values(classifications).filter((c) => c.clasificacion === 'compra').length;
+  const itemsSinClasificar = Object.values(classifications).filter((c) => c.clasificacion === null).length;
 
-  if (!canMarkStock || estado !== "REVISION_LOGISTICA") {
+  // No mostrar si no hay permisos o no hay ítems pendientes
+  if (!canMarkStock) {
     return null;
+  }
+
+  // Mostrar resumen si no hay ítems pendientes pero hay ítems en otros estados
+  if (itemsPendientes.length === 0) {
+    const itemsYaClasificados = items.filter(
+      (item) => item.estadoItem !== 'PENDIENTE_CLASIFICACION'
+    );
+
+    if (itemsYaClasificados.length === 0 || estado !== "REVISION_LOGISTICA") {
+      return null;
+    }
+
+    // Mostrar resumen de ítems ya clasificados
+    return (
+      <Card className="border-blue-200 dark:border-blue-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5 text-blue-600" />
+            Revisión de Logística
+          </CardTitle>
+          <CardDescription>
+            Todos los ítems han sido clasificados
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                <div>
+                  <p className="font-medium text-sm">{item.descripcion}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.cantidadAprobada || item.cantidadSolicitada} {item.unidadMedida?.abreviatura}
+                  </p>
+                </div>
+                <Badge className={`${ITEM_STATUS_CONFIG[item.estadoItem].bgColor} ${ITEM_STATUS_CONFIG[item.estadoItem].color}`}>
+                  {ITEM_STATUS_CONFIG[item.estadoItem].label}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -373,18 +343,19 @@ export function LogisticaPanel({
           Revisión de Logística
         </CardTitle>
         <CardDescription>
-          Clasifica cada ítem según disponibilidad de stock
+          Clasifica cada ítem según disponibilidad de stock. El estado de cada ítem se manejará de forma independiente.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg text-sm">
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 text-red-600 rounded-lg text-sm flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
             {error}
           </div>
         )}
 
         {/* Resumen */}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-3">
           <Badge variant="outline" className="text-green-600 border-green-300">
             <Package className="h-3 w-3 mr-1" />
             En Stock: {itemsEnStock}
@@ -395,71 +366,96 @@ export function LogisticaPanel({
           </Badge>
           {itemsSinClasificar > 0 && (
             <Badge variant="outline" className="text-gray-600">
+              <AlertCircle className="h-3 w-3 mr-1" />
               Sin clasificar: {itemsSinClasificar}
             </Badge>
           )}
         </div>
 
-        {/* Lista de items */}
+        {/* Lista de items pendientes */}
         <div className="space-y-4">
-          {items.map((item) => {
-            const status = stockStatus[item.id];
+          <h4 className="font-medium text-sm flex items-center gap-2">
+            Ítems Pendientes de Clasificación
+            <Badge variant="secondary">{itemsPendientes.length}</Badge>
+          </h4>
+
+          {itemsPendientes.map((item) => {
+            const classification = classifications[item.id];
             return (
               <div
                 key={item.id}
-                className="p-4 border rounded-lg space-y-3 bg-muted/30"
+                className={`p-4 border rounded-lg space-y-3 transition-colors ${
+                  classification?.clasificacion === 'stock'
+                    ? 'bg-green-50 dark:bg-green-900/20 border-green-300'
+                    : classification?.clasificacion === 'compra'
+                    ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300'
+                    : 'bg-muted/30'
+                }`}
               >
-                <div>
-                  <p className="font-medium">{item.descripcion}</p>
-                  <div className="flex flex-wrap gap-x-4 text-sm text-muted-foreground">
-                    {item.numeroParte && <span>Nº Parte: {item.numeroParte}</span>}
-                    {item.modelo && <span>Modelo: {item.modelo}</span>}
-                    <span>{item.categoria?.nombre}</span>
-                    <span>Solicitado: {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}</span>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-medium">{item.descripcion}</p>
+                    <div className="flex flex-wrap gap-x-4 text-sm text-muted-foreground">
+                      {item.numeroParte && <span>Nº Parte: {item.numeroParte}</span>}
+                      {item.marca && <span>Marca: {item.marca}</span>}
+                      {item.modelo && <span>Modelo: {item.modelo}</span>}
+                      <span>{item.categoria?.nombre}</span>
+                    </div>
                   </div>
+                  <Badge variant="outline">
+                    {item.cantidadSolicitada} {item.unidadMedida?.abreviatura}
+                  </Badge>
                 </div>
 
-                {/* Clasificación */}
+                {/* Clasificación con Radio buttons visuales */}
                 <div className="space-y-2">
-                  <Label className="text-xs">Clasificación</Label>
-                  <div className="flex gap-4">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`stock-${item.id}`}
-                        checked={status.enStock}
-                        onCheckedChange={(checked) =>
-                          handleStockChange(item.id, "enStock", checked === true)
-                        }
-                      />
-                      <label
-                        htmlFor={`stock-${item.id}`}
-                        className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                      >
-                        <Package className="h-3 w-3 text-green-600" />
-                        En Stock
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`compra-${item.id}`}
-                        checked={status.requiereCompra}
-                        onCheckedChange={(checked) =>
-                          handleStockChange(item.id, "requiereCompra", checked === true)
-                        }
-                      />
-                      <label
-                        htmlFor={`compra-${item.id}`}
-                        className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                      >
-                        <ShoppingCart className="h-3 w-3 text-orange-600" />
-                        Requiere Compra
-                      </label>
-                    </div>
+                  <Label className="text-xs font-semibold">Clasificación</Label>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleClassificationChange(item.id, 'stock')}
+                      className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                        classification?.clasificacion === 'stock'
+                          ? 'border-green-500 bg-green-100 dark:bg-green-900/40'
+                          : 'border-gray-200 hover:border-green-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Package className={`h-5 w-5 ${
+                          classification?.clasificacion === 'stock' ? 'text-green-600' : 'text-gray-400'
+                        }`} />
+                        <span className={`font-medium ${
+                          classification?.clasificacion === 'stock' ? 'text-green-700' : 'text-gray-600'
+                        }`}>
+                          En Stock
+                        </span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleClassificationChange(item.id, 'compra')}
+                      className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                        classification?.clasificacion === 'compra'
+                          ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/40'
+                          : 'border-gray-200 hover:border-orange-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <ShoppingCart className={`h-5 w-5 ${
+                          classification?.clasificacion === 'compra' ? 'text-orange-600' : 'text-gray-400'
+                        }`} />
+                        <span className={`font-medium ${
+                          classification?.clasificacion === 'compra' ? 'text-orange-700' : 'text-gray-600'
+                        }`}>
+                          Requiere Compra
+                        </span>
+                      </div>
+                    </button>
                   </div>
                 </div>
 
                 {/* Campos adicionales si requiere compra */}
-                {status.requiereCompra && (
+                {classification?.clasificacion === 'compra' && (
                   <div className="grid gap-4 md:grid-cols-2 pt-2 border-t">
                     <div className="space-y-2">
                       <Label htmlFor={`fecha-${item.id}`} className="text-xs">
@@ -469,22 +465,22 @@ export function LogisticaPanel({
                         id={`fecha-${item.id}`}
                         type="date"
                         min={new Date().toISOString().split('T')[0]}
-                        value={status.fechaEstimadaCompra}
+                        value={classification.fechaEstimadaCompra}
                         onChange={(e) =>
-                          handleStockChange(item.id, "fechaEstimadaCompra", e.target.value)
+                          handleFieldChange(item.id, "fechaEstimadaCompra", e.target.value)
                         }
                         className="h-8"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor={`motivo-${item.id}`} className="text-xs">
-                        Observaciones
+                        Observaciones / Proveedor
                       </Label>
                       <Input
                         id={`motivo-${item.id}`}
-                        value={status.motivoStock}
+                        value={classification.motivoStock}
                         onChange={(e) =>
-                          handleStockChange(item.id, "motivoStock", e.target.value)
+                          handleFieldChange(item.id, "motivoStock", e.target.value)
                         }
                         placeholder="Motivo o proveedor..."
                         className="h-8"
@@ -601,53 +597,27 @@ export function LogisticaPanel({
           )}
         </div>
 
-        {/* Acciones */}
-        <div className="flex flex-col gap-3 pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            Una vez clasificados todos los ítems, selecciona cómo procesar el requerimiento:
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => handleProcess("stock")}
-              disabled={isProcessing || itemsEnStock === 0 || itemsCompra > 0}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isProcessing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Truck className="h-4 w-4 mr-2" />
-              )}
-              Todo en Stock - Listo para Despacho
-            </Button>
-            <Button
-              onClick={() => handleProcess("compra")}
-              disabled={isProcessing || itemsCompra === 0}
-              variant="outline"
-              className="border-orange-300 text-orange-600 hover:bg-orange-50"
-            >
-              {isProcessing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <ShoppingCart className="h-4 w-4 mr-2" />
-              )}
-              Enviar a Compras
-            </Button>
-            {itemsEnStock > 0 && itemsCompra > 0 && (
-              <Button
-                onClick={() => handleProcess("mixto")}
-                disabled={isProcessing}
-                variant="outline"
-                className="border-purple-300 text-purple-600 hover:bg-purple-50"
-              >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                )}
-                Despachar Stock + Enviar Compras a Validacion
-              </Button>
+        {/* Botón de procesar */}
+        <div className="pt-4 border-t">
+          <Button
+            onClick={handleProcess}
+            disabled={isProcessing || itemsSinClasificar > 0}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+            size="lg"
+          >
+            {isProcessing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <CheckCircle className="h-4 w-4 mr-2" />
             )}
-          </div>
+            {itemsSinClasificar > 0
+              ? `Clasificar todos los ítems (${itemsSinClasificar} pendiente${itemsSinClasificar > 1 ? 's' : ''})`
+              : `Procesar ${itemsPendientes.length} ítem${itemsPendientes.length > 1 ? 's' : ''}`
+            }
+          </Button>
+          <p className="text-xs text-center text-muted-foreground mt-2">
+            Los ítems en stock pasarán a "Listo para Despacho". Los de compra pasarán a "Pendiente Validación Admin".
+          </p>
         </div>
       </CardContent>
     </Card>

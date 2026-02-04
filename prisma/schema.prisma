@@ -158,6 +158,7 @@ model RequerimientoItem {
   observacionCompra   String?
   compraRecibida      Boolean?
   fechaRecepcionCompra DateTime?
+  estadoItem          ItemStatus         @default(PENDIENTE_CLASIFICACION)
   eliminado           Boolean            @default(false)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -318,6 +319,18 @@ enum LoteStatus {
   DESPACHADO
   EN_TRANSITO
   ENTREGADO
+}
+
+enum ItemStatus {
+  PENDIENTE_CLASIFICACION
+  EN_STOCK
+  REQUIERE_COMPRA
+  PENDIENTE_VALIDACION_ADMIN
+  APROBADO_COMPRA
+  RECHAZADO_COMPRA
+  LISTO_PARA_DESPACHO
+  DESPACHO_PARCIAL
+  DESPACHADO
 }
 
 enum NotificationType {

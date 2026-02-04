@@ -184,11 +184,9 @@ export function RecepcionPanel({
     return null;
   }
 
-  if (estado !== "ENVIADO" && estado !== "ENTREGADO_PARCIAL") {
-    return null;
-  }
-
-  if (lotesEnviados.length === 0) {
+  // IMPORTANTE: Mostrar el panel si hay lotes despachados, sin importar el estado del requerimiento
+  // Esto permite al Receptor confirmar entregas parciales mientras otros items están en compra
+  if (lotesEnviados.length === 0 && lotesRecibidos.length === 0) {
     return null;
   }
 

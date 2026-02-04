@@ -40,6 +40,18 @@ export type LoteStatus =
   | 'EN_TRANSITO'
   | 'ENTREGADO';
 
+// Item status (estado individual de cada ítem)
+export type ItemStatus =
+  | 'PENDIENTE_CLASIFICACION'
+  | 'EN_STOCK'
+  | 'REQUIERE_COMPRA'
+  | 'PENDIENTE_VALIDACION_ADMIN'
+  | 'APROBADO_COMPRA'
+  | 'RECHAZADO_COMPRA'
+  | 'LISTO_PARA_DESPACHO'
+  | 'DESPACHO_PARCIAL'
+  | 'DESPACHADO';
+
 // Notification type
 export type NotificationType =
   | 'REQUERIMIENTO_CREADO'
