@@ -269,24 +269,26 @@ export function isRejected(status: ItemStatus): boolean {
 /**
  * Calcula el estado sugerido del requerimiento basado en los estados de sus ítems
  *
+ * IMPORTANTE: Esta función NO marca como ENTREGADO.
+ * El estado ENTREGADO solo se establece cuando el RECEPTOR confirma la recepción física
+ * a través de la API /api/lotes/[id]/confirm.
+ *
  * Prioridades (de mayor a menor):
- * 1. Si todos están despachados → ENTREGADO
- * 2. Si hay alguno despachado → ENVIADO (permite más despachos y recepciones)
- * 3. Si hay items pendientes de validación admin → EN_COMPRA
- * 4. Si hay items con compra aprobada (esperando recepción) → LISTO_DESPACHO (para que Logística pueda confirmar)
- * 5. Si hay items listos para despacho → LISTO_DESPACHO
- * 6. Si hay items pendientes de clasificación → REVISION_LOGISTICA
+ * 1. Si hay alguno despachado → ENVIADO (permite que RECEPTOR confirme entregas)
+ * 2. Si hay items pendientes de validación admin → EN_COMPRA
+ * 3. Si hay items con compra aprobada (esperando recepción) → LISTO_DESPACHO
+ * 4. Si hay items listos para despacho → LISTO_DESPACHO
+ * 5. Si hay items pendientes de clasificación → REVISION_LOGISTICA
  */
 export function calculateRequerimientoStatus(itemStatuses: ItemStatus[]): string {
   if (itemStatuses.length === 0) return 'BORRADOR';
 
-  // Si todos están despachados → ENTREGADO
-  if (itemStatuses.every(s => s === 'DESPACHADO')) {
-    return 'ENTREGADO';
-  }
+  // IMPORTANTE: NO marcar como ENTREGADO aquí.
+  // El estado ENTREGADO solo debe establecerse cuando el RECEPTOR confirma la recepción física.
+  // La API /api/lotes/[id]/confirm se encarga de esto basándose en las cantidades recibidas.
 
-  // Si hay despachos pero no todos completos → ENVIADO
-  // Esto permite que Receptor confirme entregas y Logística siga trabajando
+  // Si hay ítems despachados (parcial o totalmente) → ENVIADO
+  // Esto permite que el RECEPTOR vea y confirme las entregas
   const hasDispatched = itemStatuses.some(s => s === 'DESPACHADO' || s === 'DESPACHO_PARCIAL');
   if (hasDispatched) {
     return 'ENVIADO';

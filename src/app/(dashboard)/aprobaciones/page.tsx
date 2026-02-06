@@ -8,11 +8,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/requerimientos/status-badge";
 import { RequerimientoStatus } from "@/types";
-import { CheckCircle, Eye, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, Eye, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -60,8 +70,8 @@ function ApprovalCard({
   isApproving,
 }: {
   requerimiento: ApprovalRequerimiento;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
+  onApprove: (requerimiento: ApprovalRequerimiento) => void;
+  onReject: (requerimiento: ApprovalRequerimiento) => void;
   isApproving: string | null;
 }) {
   const initials = requerimiento.solicitante.nombre
@@ -113,7 +123,7 @@ function ApprovalCard({
               variant="outline"
               size="sm"
               className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
-              onClick={() => onReject(requerimiento.id)}
+              onClick={() => onReject(requerimiento)}
               disabled={isProcessing}
             >
               <XCircle className="h-4 w-4 mr-1" />
@@ -122,7 +132,7 @@ function ApprovalCard({
             <Button
               size="sm"
               className="bg-green-600 hover:bg-green-700"
-              onClick={() => onApprove(requerimiento.id)}
+              onClick={() => onApprove(requerimiento)}
               disabled={isProcessing}
             >
               {isProcessing ? (
@@ -146,6 +156,17 @@ export default function AprobacionesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isApproving, setIsApproving] = useState<string | null>(null);
 
+  // Estado para los diálogos de confirmación
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    type: "approve" | "reject";
+    requerimiento: ApprovalRequerimiento | null;
+  }>({
+    open: false,
+    type: "approve",
+    requerimiento: null,
+  });
+
   const fetchAprobaciones = async () => {
     try {
       const response = await fetch("/api/aprobaciones");
@@ -165,7 +186,36 @@ export default function AprobacionesPage() {
     fetchAprobaciones();
   }, []);
 
+  // Abrir diálogo de confirmación para aprobar
+  const openApproveDialog = (requerimiento: ApprovalRequerimiento) => {
+    setConfirmDialog({
+      open: true,
+      type: "approve",
+      requerimiento,
+    });
+  };
+
+  // Abrir diálogo de confirmación para rechazar
+  const openRejectDialog = (requerimiento: ApprovalRequerimiento) => {
+    setConfirmDialog({
+      open: true,
+      type: "reject",
+      requerimiento,
+    });
+  };
+
+  // Cerrar diálogo
+  const closeDialog = () => {
+    setConfirmDialog({
+      open: false,
+      type: "approve",
+      requerimiento: null,
+    });
+  };
+
+  // Ejecutar aprobación después de confirmación
   const handleApprove = async (id: string) => {
+    closeDialog();
     setIsApproving(id);
     try {
       const response = await fetch(`/api/requerimientos/${id}/approve`, {
@@ -181,8 +231,21 @@ export default function AprobacionesPage() {
     }
   };
 
+  // Ejecutar rechazo después de confirmación
   const handleReject = (id: string) => {
+    closeDialog();
     router.push(`/requerimientos/${id}`);
+  };
+
+  // Confirmar acción del diálogo
+  const handleConfirmAction = () => {
+    if (!confirmDialog.requerimiento) return;
+
+    if (confirmDialog.type === "approve") {
+      handleApprove(confirmDialog.requerimiento.id);
+    } else {
+      handleReject(confirmDialog.requerimiento.id);
+    }
   };
 
   const seguridadPending = requerimientos.filter(
@@ -328,8 +391,8 @@ export default function AprobacionesPage() {
               <ApprovalCard
                 key={req.id}
                 requerimiento={req}
-                onApprove={handleApprove}
-                onReject={handleReject}
+                onApprove={openApproveDialog}
+                onReject={openRejectDialog}
                 isApproving={isApproving}
               />
             ))
@@ -350,8 +413,8 @@ export default function AprobacionesPage() {
               <ApprovalCard
                 key={req.id}
                 requerimiento={req}
-                onApprove={handleApprove}
-                onReject={handleReject}
+                onApprove={openApproveDialog}
+                onReject={openRejectDialog}
                 isApproving={isApproving}
               />
             ))
@@ -372,8 +435,8 @@ export default function AprobacionesPage() {
               <ApprovalCard
                 key={req.id}
                 requerimiento={req}
-                onApprove={handleApprove}
-                onReject={handleReject}
+                onApprove={openApproveDialog}
+                onReject={openRejectDialog}
                 isApproving={isApproving}
               />
             ))
@@ -394,8 +457,8 @@ export default function AprobacionesPage() {
               <ApprovalCard
                 key={req.id}
                 requerimiento={req}
-                onApprove={handleApprove}
-                onReject={handleReject}
+                onApprove={openApproveDialog}
+                onReject={openRejectDialog}
                 isApproving={isApproving}
               />
             ))
@@ -416,14 +479,69 @@ export default function AprobacionesPage() {
               <ApprovalCard
                 key={req.id}
                 requerimiento={req}
-                onApprove={handleApprove}
-                onReject={handleReject}
+                onApprove={openApproveDialog}
+                onReject={openRejectDialog}
                 isApproving={isApproving}
               />
             ))
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo de confirmación */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => !open && closeDialog()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {confirmDialog.type === "approve" ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Confirmar Aprobación
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  Confirmar Rechazo
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.type === "approve" ? (
+                <>
+                  ¿Está seguro que desea <strong>aprobar</strong> el requerimiento{" "}
+                  <strong>{confirmDialog.requerimiento?.numero}</strong>?
+                  <br />
+                  <span className="text-sm text-muted-foreground mt-2 block">
+                    Esta acción avanzará el requerimiento al siguiente paso del flujo de aprobación.
+                  </span>
+                </>
+              ) : (
+                <>
+                  ¿Está seguro que desea <strong>rechazar</strong> el requerimiento{" "}
+                  <strong>{confirmDialog.requerimiento?.numero}</strong>?
+                  <br />
+                  <span className="text-sm text-muted-foreground mt-2 block">
+                    Será redirigido a la página de detalle para agregar el motivo del rechazo.
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmAction}
+              className={
+                confirmDialog.type === "approve"
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-red-600 hover:bg-red-700"
+              }
+            >
+              {confirmDialog.type === "approve" ? "Sí, Aprobar" : "Sí, Rechazar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

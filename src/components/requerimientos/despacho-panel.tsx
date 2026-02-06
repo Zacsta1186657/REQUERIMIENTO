@@ -50,6 +50,7 @@ interface Lote {
   transportista: string | null;
   destino: string | null;
   fechaEnvio: string | null;
+  fechaEstimadaLlegada: string | null;
   items: {
     id: string;
     cantidadEnviada: number;
@@ -80,6 +81,7 @@ export function DespachoPanel({
   const [selectedItems, setSelectedItems] = useState<Record<string, number>>({});
   const [transportista, setTransportista] = useState("");
   const [destino, setDestino] = useState("");
+  const [fechaEstimadaLlegada, setFechaEstimadaLlegada] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isDispatching, setIsDispatching] = useState<string | null>(null);
@@ -168,6 +170,7 @@ export function DespachoPanel({
           })),
           transportista: transportista || undefined,
           destino: destino || undefined,
+          fechaEstimadaLlegada: fechaEstimadaLlegada || undefined,
           observaciones: observaciones || undefined,
         }),
       });
@@ -177,6 +180,7 @@ export function DespachoPanel({
         setSelectedItems({});
         setTransportista("");
         setDestino("");
+        setFechaEstimadaLlegada("");
         setObservaciones("");
         onUpdate();
       } else {
@@ -455,6 +459,17 @@ export function DespachoPanel({
                     Destino: {lote.destino}
                   </p>
                 )}
+                {lote.fechaEstimadaLlegada && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    Llegada estimada: {new Date(lote.fechaEstimadaLlegada).toLocaleDateString("es-ES", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric"
+                    })}
+                    <span className="text-amber-600 dark:text-amber-400">(estimación)</span>
+                  </p>
+                )}
                 <div className="text-xs">
                   {lote.items.map((loteItem) => (
                     <span key={loteItem.id} className="mr-3">
@@ -549,6 +564,26 @@ export function DespachoPanel({
                       placeholder="Dirección de destino"
                     />
                   </div>
+                </div>
+
+                {/* Fecha estimada de llegada */}
+                <div className="space-y-2">
+                  <Label htmlFor="fechaEstimada" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    Fecha Estimada de Llegada
+                    <span className="text-xs text-muted-foreground font-normal">(Opcional - Solo estimación)</span>
+                  </Label>
+                  <Input
+                    id="fechaEstimada"
+                    type="date"
+                    value={fechaEstimadaLlegada}
+                    onChange={(e) => setFechaEstimadaLlegada(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="max-w-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Esta fecha es solo una estimación para informar al receptor cuándo podría llegar el lote.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

@@ -67,19 +67,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    // Validate all items belong to this requerimiento and are in PENDIENTE_CLASIFICACION
+    // Validate all items belong to this requerimiento and are classifiable
+    // SOLO PENDIENTE_CLASIFICACION: clasificación inicial
+    // NOTA: Los ítems RECHAZADO_COMPRA NO pueden ser reclasificados - quedan descartados del flujo
     const requerimientoItemIds = requerimiento.items.map((i) => i.id);
-    const pendingItems = requerimiento.items.filter(
+    const classifiableItems = requerimiento.items.filter(
       (i) => i.estadoItem === 'PENDIENTE_CLASIFICACION'
     );
-    const pendingItemIds = pendingItems.map((i) => i.id);
+    const classifiableItemIds = classifiableItems.map((i) => i.id);
 
     for (const item of items) {
       if (!requerimientoItemIds.includes(item.itemId)) {
         return errorResponse(`El ítem ${item.itemId} no pertenece a este requerimiento`, 400);
       }
-      if (!pendingItemIds.includes(item.itemId)) {
-        return errorResponse(`El ítem ${item.itemId} no está pendiente de clasificación`, 400);
+      // Verificar si el ítem está rechazado
+      const reqItem = requerimiento.items.find((i) => i.id === item.itemId);
+      if (reqItem?.estadoItem === 'RECHAZADO_COMPRA') {
+        return errorResponse(`El ítem "${reqItem.descripcion}" fue rechazado por Administración y no puede ser procesado`, 400);
+      }
+      if (!classifiableItemIds.includes(item.itemId)) {
+        return errorResponse(`El ítem ${item.itemId} no está disponible para clasificación`, 400);
       }
     }
 
@@ -105,8 +112,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
       // Create modification history
       await Promise.all(
-        itemsStock.map((item) =>
-          prisma.modificacionItem.create({
+        itemsStock.map((item) => {
+          return prisma.modificacionItem.create({
             data: {
               requerimientoItemId: item.itemId,
               usuarioId: user.id,
@@ -115,8 +122,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               valorNuevo: 'LISTO_PARA_DESPACHO',
               motivo: 'Clasificado como en stock por Logística',
             },
-          })
-        )
+          });
+        })
       );
     }
 
@@ -135,15 +142,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               fechaEstimadaCompra: item.fechaEstimadaCompra
                 ? new Date(item.fechaEstimadaCompra)
                 : null,
+              // Limpiar campos de validación anterior si fue rechazado
+              validadoCompra: null,
+              validadoPorId: null,
+              fechaValidacion: null,
+              observacionCompra: null,
             },
           })
         )
       );
 
       // Create modification history
+      // NOTA: Los ítems RECHAZADO_COMPRA no pueden ser reclasificados,
+      // por lo que siempre vienen de PENDIENTE_CLASIFICACION
       await Promise.all(
-        itemsCompra.map((item) =>
-          prisma.modificacionItem.create({
+        itemsCompra.map((item) => {
+          return prisma.modificacionItem.create({
             data: {
               requerimientoItemId: item.itemId,
               usuarioId: user.id,
@@ -152,8 +166,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
               valorNuevo: 'PENDIENTE_VALIDACION_ADMIN',
               motivo: 'Clasificado como requiere compra por Logística',
             },
-          })
-        )
+          });
+        })
       );
     }
 

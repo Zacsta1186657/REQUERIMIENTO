@@ -113,11 +113,11 @@ export function getPermissions(
       break;
 
     case 'ADMINISTRACION':
-      // ADMINISTRACION puede validar compras incluso si algunos items ya fueron despachados
+      // ADMINISTRACION valida compras A NIVEL DE ÍTEMS INDIVIDUALES usando el AdministracionPanel
+      // NO usa los botones de Aprobar/Rechazar del encabezado (esos son para SEGURIDAD/GERENCIA)
       // El estado del requerimiento puede ser EN_COMPRA, LISTO_DESPACHO, ENVIADO, etc.
       if (['EN_COMPRA', 'LISTO_DESPACHO', 'ENVIADO', 'ENTREGADO_PARCIAL'].includes(status)) {
-        permissions.canApprove = true;
-        permissions.canReject = true;
+        // Solo permiso para validar compras a nivel de ítem, NO aprobar/rechazar el requerimiento
         permissions.canValidatePurchase = true;
       }
       break;
@@ -227,10 +227,15 @@ export function getPendingApprovalStatuses(userRole: UserRole): RequerimientoSta
     SEGURIDAD: ['VALIDACION_SEGURIDAD'],
     OPERACIONES: ['VALIDACION_SEGURIDAD'],
     GERENCIA: ['VALIDACION_GERENCIA'],
-    ADMINISTRACION: ['EN_COMPRA'],
-    ADMIN: ['VALIDACION_SEGURIDAD', 'VALIDACION_GERENCIA', 'EN_COMPRA'],
-    LOGISTICA: ['REVISION_LOGISTICA'],
-    RECEPTOR: ['ENVIADO'],
+    // ADMINISTRACION: Incluir todos los estados donde puede haber ítems pendientes de validación
+    // Debido a despachos parciales, el requerimiento puede estar en ENVIADO, LISTO_DESPACHO, etc.
+    // pero aún tener ítems en PENDIENTE_VALIDACION_ADMIN
+    ADMINISTRACION: ['EN_COMPRA', 'LISTO_DESPACHO', 'ENVIADO', 'ENTREGADO_PARCIAL'],
+    ADMIN: ['VALIDACION_SEGURIDAD', 'VALIDACION_GERENCIA', 'EN_COMPRA', 'LISTO_DESPACHO', 'ENVIADO', 'ENTREGADO_PARCIAL'],
+    // LOGISTICA: Incluir estados donde hay trabajo pendiente (clasificación, recepciones, despachos)
+    LOGISTICA: ['REVISION_LOGISTICA', 'LISTO_DESPACHO', 'EN_COMPRA', 'APROBADO_ADM', 'ENVIADO', 'ENTREGADO_PARCIAL'],
+    // RECEPTOR: Puede confirmar entregas en cualquier estado que tenga lotes despachados
+    RECEPTOR: ['ENVIADO', 'ENTREGADO_PARCIAL', 'LISTO_DESPACHO'],
   };
 
   return statusMap[userRole] || [];

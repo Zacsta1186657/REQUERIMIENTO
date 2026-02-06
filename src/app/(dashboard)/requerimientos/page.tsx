@@ -17,7 +17,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { RequerimientoStatus, STATUS_CONFIG } from "@/types";
 import { Plus, Search, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const statusOptions: (RequerimientoStatus | "ALL")[] = [
@@ -39,9 +40,11 @@ const statusOptions: (RequerimientoStatus | "ALL")[] = [
   "RECHAZADO_ADM",
 ];
 
-export default function RequerimientosPage() {
+function RequerimientosContent() {
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams.get("search") || "";
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState<RequerimientoStatus | "ALL">("ALL");
   const [mounted, setMounted] = useState(false);
 
@@ -179,5 +182,21 @@ export default function RequerimientosPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function RequerimientosPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-96 w-full" />
+        </div>
+      }
+    >
+      <RequerimientosContent />
+    </Suspense>
   );
 }

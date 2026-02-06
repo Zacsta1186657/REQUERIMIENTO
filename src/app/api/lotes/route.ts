@@ -20,6 +20,7 @@ const createLoteSchema = z.object({
   transportista: z.string().optional(),
   destino: z.string().optional(),
   observaciones: z.string().optional(),
+  fechaEstimadaLlegada: z.string().optional(), // Fecha estimada de llegada (ISO string)
 });
 
 export async function POST(request: NextRequest) {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { requerimientoId, items, transportista, destino, observaciones } = validation.data;
+    const { requerimientoId, items, transportista, destino, observaciones, fechaEstimadaLlegada } = validation.data;
 
     // Verify requirement exists and is in correct status
     const requerimiento = await prisma.requerimiento.findUnique({
@@ -60,12 +61,13 @@ export async function POST(request: NextRequest) {
       return notFoundResponse('Requerimiento no encontrado');
     }
 
-    const validStates = ['LISTO_DESPACHO', 'EN_COMPRA', 'ENVIADO', 'ENTREGADO_PARCIAL'];
+    // Estados válidos para crear lotes - debe coincidir con los permisos en permissions.ts
+    const validStates = ['REVISION_LOGISTICA', 'LISTO_DESPACHO', 'EN_COMPRA', 'APROBADO_ADM', 'ENVIADO', 'ENTREGADO_PARCIAL'];
     if (!validStates.includes(requerimiento.estado)) {
-      return errorResponse('El requerimiento debe estar en estado Listo para Despacho, En Compra, Enviado o Entregado Parcial', 400);
+      return errorResponse('El requerimiento no está en un estado válido para crear lotes', 400);
     }
 
-    // Validate items exist and belong to this requirement
+    // Validate items exist, belong to this requirement, and are in a dispatchable state
     const itemIds = items.map((i) => i.requerimientoItemId);
     const existingItems = await prisma.requerimientoItem.findMany({
       where: {
@@ -79,6 +81,24 @@ export async function POST(request: NextRequest) {
       return errorResponse('Algunos items no son válidos o no pertenecen a este requerimiento', 400);
     }
 
+    // Verificar que todos los ítems estén en un estado despachable
+    // LISTO_PARA_DESPACHO: ítems que están listos (de stock o compra recibida)
+    // DESPACHO_PARCIAL: ítems que ya tienen despachos parciales
+    // EN_STOCK: permitir por retrocompatibilidad (aunque deberían estar en LISTO_PARA_DESPACHO)
+    const dispatchableStates = ['LISTO_PARA_DESPACHO', 'DESPACHO_PARCIAL', 'EN_STOCK'];
+    const nonDispatchableItems = existingItems.filter(
+      (item) => !dispatchableStates.includes(item.estadoItem)
+    );
+
+    if (nonDispatchableItems.length > 0) {
+      const descriptions = nonDispatchableItems.map(i => i.descripcion).join(', ');
+      return errorResponse(
+        `Los siguientes ítems no están listos para despacho: ${descriptions}. ` +
+        `Estado requerido: Listo para Despacho o Despacho Parcial.`,
+        400
+      );
+    }
+
     // Create lote with items
     const loteNumber = requerimiento._count.lotes + 1;
 
@@ -89,6 +109,7 @@ export async function POST(request: NextRequest) {
         transportista,
         destino,
         observaciones,
+        fechaEstimadaLlegada: fechaEstimadaLlegada ? new Date(fechaEstimadaLlegada) : null,
         items: {
           create: items.map((item) => ({
             requerimientoItemId: item.requerimientoItemId,

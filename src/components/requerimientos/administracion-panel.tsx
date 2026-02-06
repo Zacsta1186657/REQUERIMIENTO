@@ -8,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -52,7 +51,7 @@ interface AdministracionPanelProps {
 }
 
 interface ItemValidation {
-  validado: boolean;
+  decision: 'aprobar' | 'rechazar' | null;
   observacion: string;
 }
 
@@ -77,7 +76,7 @@ export function AdministracionPanel({
     const initial: Record<string, ItemValidation> = {};
     itemsPendientesValidacion.forEach((item) => {
       initial[item.id] = {
-        validado: false,
+        decision: null,
         observacion: item.observacionCompra || "",
       };
     });
@@ -87,7 +86,7 @@ export function AdministracionPanel({
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleValidationChange = (itemId: string, field: keyof ItemValidation, value: boolean | string) => {
+  const handleValidationChange = (itemId: string, field: keyof ItemValidation, value: 'aprobar' | 'rechazar' | null | string) => {
     setValidations((prev) => ({
       ...prev,
       [itemId]: {
@@ -99,12 +98,29 @@ export function AdministracionPanel({
 
   const handleProcess = async () => {
     setError(null);
+
+    // Validar que todos los ítems tengan una decisión
+    const itemsSinDecision = Object.entries(validations).filter(([, v]) => v.decision === null);
+    if (itemsSinDecision.length > 0) {
+      setError(`Hay ${itemsSinDecision.length} ítem(s) sin decisión. Debe aprobar o rechazar cada ítem.`);
+      return;
+    }
+
+    // Validar que los rechazados tengan observación obligatoria
+    const rechazadosSinObservacion = Object.entries(validations).filter(
+      ([, v]) => v.decision === 'rechazar' && (!v.observacion || v.observacion.trim().length < 10)
+    );
+    if (rechazadosSinObservacion.length > 0) {
+      setError(`Los ítems rechazados requieren una observación de al menos 10 caracteres. Faltan ${rechazadosSinObservacion.length} ítem(s).`);
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const itemsToValidate = Object.entries(validations).map(([itemId, validation]) => ({
         itemId,
-        validado: validation.validado,
+        validado: validation.decision === 'aprobar',
         observacion: validation.observacion || undefined,
       }));
 
@@ -131,8 +147,9 @@ export function AdministracionPanel({
   };
 
   // Calculate summary
-  const itemsAprobados = Object.values(validations).filter((v) => v.validado).length;
-  const itemsRechazados = itemsPendientesValidacion.length - itemsAprobados;
+  const itemsAprobados = Object.values(validations).filter((v) => v.decision === 'aprobar').length;
+  const itemsRechazados = Object.values(validations).filter((v) => v.decision === 'rechazar').length;
+  const itemsSinDecision = Object.values(validations).filter((v) => v.decision === null).length;
 
   // No mostrar si no hay permisos
   if (!canValidatePurchase) {
@@ -216,14 +233,24 @@ export function AdministracionPanel({
 
         {/* Summary */}
         <div className="flex flex-wrap gap-3">
-          <Badge variant="outline" className="text-amber-600 border-amber-300">
-            <Clock className="h-3 w-3 mr-1" />
-            Pendientes: {itemsPendientesValidacion.length}
-          </Badge>
-          <Badge variant="outline" className="text-green-600 border-green-300">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Marcados para aprobar: {itemsAprobados}
-          </Badge>
+          {itemsSinDecision > 0 && (
+            <Badge variant="outline" className="text-amber-600 border-amber-300">
+              <Clock className="h-3 w-3 mr-1" />
+              Sin decisión: {itemsSinDecision}
+            </Badge>
+          )}
+          {itemsAprobados > 0 && (
+            <Badge variant="outline" className="text-green-600 border-green-300">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Para aprobar: {itemsAprobados}
+            </Badge>
+          )}
+          {itemsRechazados > 0 && (
+            <Badge variant="outline" className="text-red-600 border-red-300">
+              <XCircle className="h-3 w-3 mr-1" />
+              Para rechazar: {itemsRechazados}
+            </Badge>
+          )}
           {itemsYaProcesados.length > 0 && (
             <Badge variant="outline" className="text-blue-600 border-blue-300">
               <Package className="h-3 w-3 mr-1" />
@@ -246,9 +273,11 @@ export function AdministracionPanel({
               <div
                 key={item.id}
                 className={`p-4 border rounded-lg space-y-3 transition-colors ${
-                  validation?.validado
+                  validation?.decision === 'aprobar'
                     ? "bg-green-50 dark:bg-green-900/20 border-green-200"
-                    : "bg-muted/30"
+                    : validation?.decision === 'rechazar'
+                      ? "bg-red-50 dark:bg-red-900/20 border-red-200"
+                      : "bg-muted/30"
                 }`}
               >
                 <div>
@@ -281,26 +310,62 @@ export function AdministracionPanel({
                 </div>
 
                 <div className="space-y-3 pt-2 border-t">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`validar-${item.id}`}
-                      checked={validation?.validado || false}
-                      onCheckedChange={(checked) =>
-                        handleValidationChange(item.id, "validado", checked === true)
-                      }
-                    />
-                    <label
-                      htmlFor={`validar-${item.id}`}
-                      className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                    >
-                      <CheckCircle className="h-3 w-3 text-green-600" />
-                      Aprobar compra
-                    </label>
+                  {/* Botones de decisión */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold">Decisión</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleValidationChange(item.id, "decision", "aprobar")}
+                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                          validation?.decision === "aprobar"
+                            ? "border-green-500 bg-green-100 dark:bg-green-900/40"
+                            : "border-gray-200 hover:border-green-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <CheckCircle className={`h-5 w-5 ${
+                            validation?.decision === "aprobar" ? "text-green-600" : "text-gray-400"
+                          }`} />
+                          <span className={`font-medium ${
+                            validation?.decision === "aprobar" ? "text-green-700" : "text-gray-600"
+                          }`}>
+                            Aprobar
+                          </span>
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleValidationChange(item.id, "decision", "rechazar")}
+                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                          validation?.decision === "rechazar"
+                            ? "border-red-500 bg-red-100 dark:bg-red-900/40"
+                            : "border-gray-200 hover:border-red-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <XCircle className={`h-5 w-5 ${
+                            validation?.decision === "rechazar" ? "text-red-600" : "text-gray-400"
+                          }`} />
+                          <span className={`font-medium ${
+                            validation?.decision === "rechazar" ? "text-red-700" : "text-gray-600"
+                          }`}>
+                            Rechazar
+                          </span>
+                        </div>
+                      </button>
+                    </div>
                   </div>
 
+                  {/* Observación - obligatoria para rechazos */}
                   <div className="space-y-2">
-                    <Label htmlFor={`obs-${item.id}`} className="text-xs">
-                      Observaciones (opcional)
+                    <Label htmlFor={`obs-${item.id}`} className="text-xs flex items-center gap-1">
+                      Observaciones
+                      {validation?.decision === "rechazar" ? (
+                        <span className="text-red-600 font-semibold">(Obligatorio - mín. 10 caracteres)</span>
+                      ) : (
+                        <span className="text-muted-foreground">(opcional)</span>
+                      )}
                     </Label>
                     <Textarea
                       id={`obs-${item.id}`}
@@ -308,10 +373,23 @@ export function AdministracionPanel({
                       onChange={(e) =>
                         handleValidationChange(item.id, "observacion", e.target.value)
                       }
-                      placeholder="Agregar observaciones sobre la compra..."
+                      placeholder={
+                        validation?.decision === "rechazar"
+                          ? "Ingrese el motivo del rechazo (obligatorio)..."
+                          : "Agregar observaciones sobre la compra..."
+                      }
                       rows={2}
-                      className="text-sm"
+                      className={`text-sm ${
+                        validation?.decision === "rechazar" && (!validation?.observacion || validation.observacion.trim().length < 10)
+                          ? "border-red-300 focus:border-red-500"
+                          : ""
+                      }`}
                     />
+                    {validation?.decision === "rechazar" && validation?.observacion && validation.observacion.trim().length < 10 && (
+                      <p className="text-xs text-red-600">
+                        Faltan {10 - validation.observacion.trim().length} caracteres
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -342,13 +420,14 @@ export function AdministracionPanel({
 
         {/* Actions */}
         <div className="flex flex-col gap-3 pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            Marca cada item como aprobado si la compra procede. Los items no marcados serán considerados como rechazados.
-          </p>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>Seleccione <strong>Aprobar</strong> o <strong>Rechazar</strong> para cada ítem.</p>
+            <p className="text-red-600">Los ítems rechazados requieren una observación obligatoria y quedarán descartados del flujo.</p>
+          </div>
           <div className="flex gap-2">
             <Button
               onClick={handleProcess}
-              disabled={isProcessing || itemsPendientesValidacion.length === 0}
+              disabled={isProcessing || itemsPendientesValidacion.length === 0 || itemsSinDecision > 0}
               className="bg-purple-600 hover:bg-purple-700"
             >
               {isProcessing ? (
@@ -356,7 +435,10 @@ export function AdministracionPanel({
               ) : (
                 <CheckCircle className="h-4 w-4 mr-2" />
               )}
-              Procesar Validación ({itemsPendientesValidacion.length} item{itemsPendientesValidacion.length !== 1 ? 's' : ''})
+              {itemsSinDecision > 0
+                ? `Faltan ${itemsSinDecision} decisión(es)`
+                : `Procesar Validación (${itemsAprobados} aprobado${itemsAprobados !== 1 ? 's' : ''}, ${itemsRechazados} rechazado${itemsRechazados !== 1 ? 's' : ''})`
+              }
             </Button>
           </div>
         </div>

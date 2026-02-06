@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthStore } from "@/stores/auth-store";
 import { ROLE_LABELS, UserRole } from "@/types";
 import {
+  BarChart3,
   CheckSquare,
   ClipboardList,
   LayoutDashboard,
@@ -58,6 +59,13 @@ const menuItems = [
     icon: Package,
     adminOnly: false,
     excludeRoles: ["TECNICO", "RECEPTOR", "SEGURIDAD", "OPERACIONES", "GERENCIA"] as UserRole[],
+  },
+  {
+    title: "Graficas",
+    url: "/graficas",
+    icon: BarChart3,
+    adminOnly: false,
+    excludeRoles: [] as UserRole[],
   },
   {
     title: "Usuarios",

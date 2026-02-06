@@ -69,7 +69,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       const requerimientoItem = loteItem.requerimientoItem;
       if (!requerimientoItem) continue;
 
-      // Calculate total dispatched quantity for this item across ALL lotes
+      // Calculate total dispatched quantity for this item across ALL dispatched lotes
+      // El lote actual ya fue actualizado a DESPACHADO, así que ya está incluido en la consulta
       const allLoteItems = await prisma.loteItem.findMany({
         where: {
           requerimientoItemId: requerimientoItem.id,
@@ -79,30 +80,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       });
 
-      // Include current lote's quantity (since we just updated it)
+      // Sumar todas las cantidades despachadas (el lote actual ya está incluido)
       const totalDespachado = allLoteItems.reduce(
         (sum, item) => sum + item.cantidadEnviada,
-        loteItem.cantidadEnviada // Add current lote item if not already counted
+        0
       );
-
-      // Avoid double counting if allLoteItems already includes this lote
-      const alreadyCounted = allLoteItems.some(item => item.id === loteItem.id);
-      const finalDespachado = alreadyCounted
-        ? allLoteItems.reduce((sum, item) => sum + item.cantidadEnviada, 0)
-        : totalDespachado;
 
       const cantidadTotal = requerimientoItem.cantidadAprobada ?? requerimientoItem.cantidadSolicitada;
 
       // Determine new estadoItem
       let newEstadoItem: 'DESPACHO_PARCIAL' | 'DESPACHADO';
-      if (finalDespachado >= cantidadTotal) {
+      if (totalDespachado >= cantidadTotal) {
         newEstadoItem = 'DESPACHADO';
       } else {
         newEstadoItem = 'DESPACHO_PARCIAL';
       }
 
-      // Only update if the item was in a dispatchable state
-      if (['LISTO_PARA_DESPACHO', 'DESPACHO_PARCIAL'].includes(requerimientoItem.estadoItem)) {
+      // Actualizar el estado del item si estaba en un estado despachable
+      // IMPORTANTE: También incluir EN_STOCK para items que vienen de compra y fueron
+      // marcados incorrectamente, aunque normalmente deberían estar en LISTO_PARA_DESPACHO
+      if (['LISTO_PARA_DESPACHO', 'DESPACHO_PARCIAL', 'EN_STOCK'].includes(requerimientoItem.estadoItem)) {
         await prisma.requerimientoItem.update({
           where: { id: requerimientoItem.id },
           data: { estadoItem: newEstadoItem },

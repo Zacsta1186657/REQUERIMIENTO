@@ -12,11 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Timeline, TimelineEvent } from "@/components/requerimientos/timeline";
-import { CheckCircle2, FileText, Loader2, Package, Truck, XCircle } from "lucide-react";
+import { Activity as ActivityIcon, CheckCircle2, FileText, Loader2, Package, Truck, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-interface Activity {
+interface ActivityItem {
   id: string;
   tipo: string;
   descripcion: string;
@@ -36,24 +36,45 @@ interface Requerimiento {
 }
 
 const getActivityIcon = (tipo: string) => {
-  switch (tipo) {
-    case "creado":
-      return <FileText className="h-4 w-4 text-blue-500" />;
-    case "aprobado":
-      return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-    case "rechazado":
-      return <XCircle className="h-4 w-4 text-red-500" />;
-    case "pendiente":
-      return <Loader2 className="h-4 w-4 text-amber-500" />;
-    case "entregado":
-      return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-    case "enviado":
-      return <Truck className="h-4 w-4 text-indigo-500" />;
-    case "despacho":
-      return <Package className="h-4 w-4 text-cyan-500" />;
-    default:
-      return <FileText className="h-4 w-4 text-gray-500" />;
-  }
+  const iconMap: Record<string, { icon: React.ReactNode; bg: string }> = {
+    creado: {
+      icon: <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />,
+      bg: "bg-blue-100 dark:bg-blue-900/50",
+    },
+    aprobado: {
+      icon: <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />,
+      bg: "bg-green-100 dark:bg-green-900/50",
+    },
+    rechazado: {
+      icon: <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />,
+      bg: "bg-red-100 dark:bg-red-900/50",
+    },
+    pendiente: {
+      icon: <Loader2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />,
+      bg: "bg-amber-100 dark:bg-amber-900/50",
+    },
+    entregado: {
+      icon: <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />,
+      bg: "bg-emerald-100 dark:bg-emerald-900/50",
+    },
+    enviado: {
+      icon: <Truck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />,
+      bg: "bg-indigo-100 dark:bg-indigo-900/50",
+    },
+    despacho: {
+      icon: <Package className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />,
+      bg: "bg-cyan-100 dark:bg-cyan-900/50",
+    },
+  };
+  const config = iconMap[tipo] || {
+    icon: <FileText className="h-4 w-4 text-gray-500" />,
+    bg: "bg-gray-100 dark:bg-gray-800",
+  };
+  return (
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${config.bg}`}>
+      {config.icon}
+    </div>
+  );
 };
 
 const formatDate = (dateStr: string) => {
@@ -75,7 +96,7 @@ const formatDate = (dateStr: string) => {
 };
 
 export function RecentActivity() {
-  const [activity, setActivity] = useState<Activity[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [requerimientos, setRequerimientos] = useState<Requerimiento[]>([]);
   const [selectedReqId, setSelectedReqId] = useState<string>("all");
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -139,7 +160,10 @@ export function RecentActivity() {
     return (
       <Card className="col-span-full lg:col-span-1">
         <CardHeader>
-          <CardTitle className="text-lg">Actividad Reciente</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ActivityIcon className="h-5 w-5 text-blue-500" />
+            Actividad Reciente
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -162,7 +186,10 @@ export function RecentActivity() {
     <Card className="col-span-full lg:col-span-1">
       <CardHeader className="pb-3">
         <div className="flex flex-col gap-3">
-          <CardTitle className="text-lg">Actividad Reciente</CardTitle>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <ActivityIcon className="h-5 w-5 text-blue-500" />
+            Actividad Reciente
+          </CardTitle>
           <Select value={selectedReqId} onValueChange={setSelectedReqId}>
             <SelectTrigger className="w-full cursor-pointer">
               <SelectValue placeholder="Seleccionar requerimiento para ver flujo..." />
@@ -210,19 +237,19 @@ export function RecentActivity() {
                 No hay actividad reciente
               </p>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-1">
                 {activity.map((item) => (
                   <Link
                     key={item.id}
                     href={`/requerimientos/${item.requerimientoId}`}
-                    className="flex items-start gap-4 hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors"
+                    className="group flex items-center gap-3 hover:bg-muted/50 rounded-lg p-2.5 -mx-2 transition-all duration-150"
                   >
-                    <div className="mt-1">{getActivityIcon(item.tipo)}</div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">
+                    {getActivityIcon(item.tipo)}
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <p className="text-sm font-medium leading-snug truncate group-hover:text-primary transition-colors">
                         {item.descripcion}
                       </p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Avatar className="h-4 w-4">
                           <AvatarFallback className="text-[8px]">
                             {item.usuario
@@ -232,9 +259,9 @@ export function RecentActivity() {
                               .slice(0, 2)}
                           </AvatarFallback>
                         </Avatar>
-                        <span>{item.usuario}</span>
-                        <span>•</span>
-                        <span>{formatDate(item.fecha)}</span>
+                        <span className="truncate">{item.usuario}</span>
+                        <span className="text-muted-foreground/50">·</span>
+                        <span className="whitespace-nowrap">{formatDate(item.fecha)}</span>
                       </div>
                     </div>
                   </Link>

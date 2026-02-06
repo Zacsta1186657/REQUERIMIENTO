@@ -46,8 +46,11 @@ interface Item {
   estadoItem: ItemStatus;
   motivoStock: string | null;
   fechaEstimadaCompra: string | null;
+  observacionCompra: string | null;
   categoria?: { nombre: string };
   unidadMedida?: { abreviatura: string };
+  validadoPor?: { id: string; nombre: string } | null;
+  fechaValidacion?: string | null;
 }
 
 interface LogisticaPanelProps {
@@ -87,15 +90,25 @@ export function LogisticaPanel({
   onUpdate,
   canMarkStock,
 }: LogisticaPanelProps) {
-  // Filtrar solo ítems pendientes de clasificación
+  // Filtrar ítems que pueden ser clasificados:
+  // - PENDIENTE_CLASIFICACION: clasificación inicial
+  // NOTA: Los ítems RECHAZADO_COMPRA NO pueden ser reclasificados - quedan descartados del flujo
   const itemsPendientes = items.filter(
     (item) => item.estadoItem === 'PENDIENTE_CLASIFICACION'
   );
 
-  // Estado local para las clasificaciones
+  // Items rechazados por Administración - solo para mostrar como histórico
+  const itemsRechazadosAdmin = items.filter(
+    (item) => item.estadoItem === 'RECHAZADO_COMPRA'
+  );
+
+  // Solo los pendientes son clasificables
+  const itemsClasificables = [...itemsPendientes];
+
+  // Estado local para las clasificaciones (incluye pendientes y rechazados)
   const [classifications, setClassifications] = useState<Record<string, ItemClassification>>(() => {
     const initial: Record<string, ItemClassification> = {};
-    itemsPendientes.forEach((item) => {
+    itemsClasificables.forEach((item) => {
       initial[item.id] = {
         clasificacion: null,
         cantidadAprobada: item.cantidadAprobada ?? item.cantidadSolicitada,
@@ -292,10 +305,10 @@ export function LogisticaPanel({
     return null;
   }
 
-  // Mostrar resumen si no hay ítems pendientes pero hay ítems en otros estados
-  if (itemsPendientes.length === 0) {
+  // Mostrar resumen si no hay ítems clasificables pero hay ítems en otros estados
+  if (itemsClasificables.length === 0) {
     const itemsYaClasificados = items.filter(
-      (item) => item.estadoItem !== 'PENDIENTE_CLASIFICACION'
+      (item) => item.estadoItem !== 'PENDIENTE_CLASIFICACION' && item.estadoItem !== 'RECHAZADO_COMPRA'
     );
 
     if (itemsYaClasificados.length === 0 || estado !== "REVISION_LOGISTICA") {
@@ -372,14 +385,74 @@ export function LogisticaPanel({
           )}
         </div>
 
-        {/* Lista de items pendientes */}
+        {/* Ítems rechazados por Administración (solo informativos) */}
+        {itemsRechazadosAdmin.length > 0 && (
+          <div className="space-y-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <h4 className="font-medium text-sm flex items-center gap-2 text-red-700 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+              Ítems Rechazados por Administración
+              <Badge variant="outline" className="text-red-600 border-red-300">
+                {itemsRechazadosAdmin.length}
+              </Badge>
+            </h4>
+            <p className="text-xs text-red-600 dark:text-red-400">
+              Estos ítems fueron rechazados y no pueden ser procesados. Se conservan como evidencia histórica.
+            </p>
+            <div className="space-y-3">
+              {itemsRechazadosAdmin.map((item) => (
+                <div key={item.id} className="p-3 bg-white dark:bg-gray-900 rounded border border-red-200 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{item.descripcion}</p>
+                      <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground mt-1">
+                        <span>{item.cantidadSolicitada} {item.unidadMedida?.abreviatura}</span>
+                        {item.numeroParte && <span>Nº Parte: {item.numeroParte}</span>}
+                        {item.marca && <span>Marca: {item.marca}</span>}
+                      </div>
+                    </div>
+                    <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 shrink-0">
+                      Rechazado
+                    </Badge>
+                  </div>
+                  {/* Motivo del rechazo */}
+                  {item.observacionCompra && (
+                    <div className="p-2 bg-red-50 dark:bg-red-900/30 rounded border-l-4 border-red-400">
+                      <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">
+                        Motivo del rechazo:
+                      </p>
+                      <p className="text-sm text-red-600 dark:text-red-300">
+                        {item.observacionCompra}
+                      </p>
+                      {item.validadoPor && (
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                          Rechazado por: {item.validadoPor.nombre}
+                          {item.fechaValidacion && (
+                            <> el {new Date(item.fechaValidacion).toLocaleDateString("es-ES", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit"
+                            })}</>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Lista de items clasificables (solo pendientes) */}
         <div className="space-y-4">
           <h4 className="font-medium text-sm flex items-center gap-2">
             Ítems Pendientes de Clasificación
-            <Badge variant="secondary">{itemsPendientes.length}</Badge>
+            <Badge variant="secondary">{itemsClasificables.length}</Badge>
           </h4>
 
-          {itemsPendientes.map((item) => {
+          {itemsClasificables.map((item) => {
             const classification = classifications[item.id];
             return (
               <div
@@ -394,7 +467,9 @@ export function LogisticaPanel({
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-medium">{item.descripcion}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{item.descripcion}</p>
+                    </div>
                     <div className="flex flex-wrap gap-x-4 text-sm text-muted-foreground">
                       {item.numeroParte && <span>Nº Parte: {item.numeroParte}</span>}
                       {item.marca && <span>Marca: {item.marca}</span>}

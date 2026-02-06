@@ -20,6 +20,7 @@ export interface RequerimientoItem {
   fechaRecepcionCompra: string | null;
   estadoItem: ItemStatus;
   validadoPor: { id: string; nombre: string } | null;
+  fechaValidacion: string | null;
   categoriaId: string;
   unidadMedidaId: string;
   categoria: { id: string; nombre: string };
@@ -56,6 +57,9 @@ export interface Lote {
   estado: string;
   fechaDespacho: string | null;
   fechaEntrega: string | null;
+  fechaEstimadaLlegada: string | null;
+  fechaEstimadaRecepcion: string | null;
+  observacionRecepcion: string | null;
   transportista: string | null;
   destino: string | null;
   observaciones: string | null;

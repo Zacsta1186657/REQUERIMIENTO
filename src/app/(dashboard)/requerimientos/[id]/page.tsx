@@ -22,7 +22,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StatusBadge } from "@/components/requerimientos/status-badge";
+import { RequerimientoStepper } from "@/components/requerimientos/requerimiento-stepper";
 import { Timeline } from "@/components/requerimientos/timeline";
 import { LogisticaPanel } from "@/components/requerimientos/logistica-panel";
 import { AdministracionPanel } from "@/components/requerimientos/administracion-panel";
@@ -88,6 +99,7 @@ export default function RequerimientoDetailPage() {
   const [isRejecting, setIsRejecting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [isAddingComment, setIsAddingComment] = useState(false);
@@ -392,7 +404,7 @@ export default function RequerimientoDetailPage() {
           {canApprove && (
             <Button
               className="bg-green-600 hover:bg-green-700"
-              onClick={handleApprove}
+              onClick={() => setShowApproveDialog(true)}
               disabled={isApproving}
             >
               {isApproving ? (
@@ -448,6 +460,13 @@ export default function RequerimientoDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Workflow Stepper - Visual timeline */}
+      <Card>
+        <CardContent className="pt-6 pb-4 px-6">
+          <RequerimientoStepper estado={requerimiento.estado} />
+        </CardContent>
+      </Card>
 
       {/* Main Content */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -767,8 +786,11 @@ export default function RequerimientoDetailPage() {
             estadoItem: item.estadoItem ?? 'PENDIENTE_CLASIFICACION',
             motivoStock: item.motivoStock ?? null,
             fechaEstimadaCompra: item.fechaEstimadaCompra ?? null,
+            observacionCompra: item.observacionCompra ?? null,
             categoria: item.categoria ? { nombre: item.categoria.nombre } : undefined,
             unidadMedida: item.unidadMedida ? { abreviatura: item.unidadMedida.abreviatura } : undefined,
+            validadoPor: item.validadoPor ? { id: item.validadoPor.id, nombre: item.validadoPor.nombre } : null,
+            fechaValidacion: item.fechaValidacion ?? null,
           })) || []}
           estado={requerimiento.estado}
           onUpdate={() => fetchRequerimiento(id)}
@@ -845,6 +867,7 @@ export default function RequerimientoDetailPage() {
             transportista: lote.transportista ?? null,
             destino: lote.destino ?? null,
             fechaEnvio: lote.fechaDespacho ?? null,
+            fechaEstimadaLlegada: lote.fechaEstimadaLlegada ?? null,
             items: lote.items?.map((loteItem) => ({
               id: loteItem.id,
               cantidadEnviada: loteItem.cantidadEnviada,
@@ -880,6 +903,9 @@ export default function RequerimientoDetailPage() {
             destino: lote.destino ?? null,
             fechaEnvio: lote.fechaDespacho ?? null,
             fechaRecepcion: lote.fechaEntrega ?? null,
+            fechaEstimadaLlegada: lote.fechaEstimadaLlegada ?? null,
+            fechaEstimadaRecepcion: lote.fechaEstimadaRecepcion ?? null,
+            observacionRecepcion: lote.observacionRecepcion ?? null,
             items: lote.items?.map((loteItem) => ({
               id: loteItem.id,
               cantidadEnviada: loteItem.cantidadEnviada,
@@ -916,6 +942,38 @@ export default function RequerimientoDetailPage() {
           canConfirmDelivery={canConfirmDelivery}
         />
       </div>
+
+      {/* Diálogo de confirmación de aprobación */}
+      <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Confirmar Aprobación
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Está seguro que desea <strong>aprobar</strong> el requerimiento{" "}
+              <strong>{requerimiento?.numero}</strong>?
+              <br />
+              <span className="text-sm text-muted-foreground mt-2 block">
+                Esta acción avanzará el requerimiento al siguiente paso del flujo de aprobación.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowApproveDialog(false);
+                handleApprove();
+              }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Sí, Aprobar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

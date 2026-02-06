@@ -179,22 +179,25 @@ model RequerimientoItem {
 }
 
 model Lote {
-  id                  String        @id @default(cuid())
-  numero              Int
-  estado              LoteStatus    @default(PENDIENTE)
-  fechaDespacho       DateTime?
-  fechaEntrega        DateTime?
-  transportista       String?
-  destino             String?
-  confirmadoRecepcion Boolean       @default(false)
-  observaciones       String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  requerimientoId     String
-  receptorId          String?
-  items               LoteItem[]
-  receptor            User?         @relation("Receptor", fields: [receptorId], references: [id])
-  requerimiento       Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
+  id                      String        @id @default(cuid())
+  numero                  Int
+  estado                  LoteStatus    @default(PENDIENTE)
+  fechaDespacho           DateTime?
+  fechaEntrega            DateTime?
+  fechaEstimadaLlegada    DateTime?     // Fecha estimada de llegada (ingresada por logística)
+  fechaEstimadaRecepcion  DateTime?     // Fecha estimada de recojo (ingresada por receptor)
+  observacionRecepcion    String?       // Observación del receptor sobre el recojo
+  transportista           String?
+  destino                 String?
+  confirmadoRecepcion     Boolean       @default(false)
+  observaciones           String?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  requerimientoId         String
+  receptorId              String?
+  items                   LoteItem[]
+  receptor                User?         @relation("Receptor", fields: [receptorId], references: [id])
+  requerimiento           Requerimiento @relation(fields: [requerimientoId], references: [id], onDelete: Cascade)
 
   @@unique([requerimientoId, numero])
   @@map("lotes")
@@ -318,6 +321,7 @@ enum LoteStatus {
   PREPARANDO
   DESPACHADO
   EN_TRANSITO
+  PENDIENTE_RECEPCION   // Receptor registró fecha estimada, pendiente de confirmar recepción
   ENTREGADO
 }
 

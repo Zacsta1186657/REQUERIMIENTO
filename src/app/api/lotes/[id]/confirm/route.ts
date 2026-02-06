@@ -54,8 +54,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return notFoundResponse('Lote no encontrado');
     }
 
-    // Lote must be in DESPACHADO or EN_TRANSITO
-    if (!['DESPACHADO', 'EN_TRANSITO'].includes(lote.estado)) {
+    // Lote must be in DESPACHADO, EN_TRANSITO or PENDIENTE_RECEPCION
+    // PENDIENTE_RECEPCION: el receptor ya programó el recojo y ahora confirma la recepción
+    if (!['DESPACHADO', 'EN_TRANSITO', 'PENDIENTE_RECEPCION'].includes(lote.estado)) {
       return errorResponse('El lote no puede ser confirmado en su estado actual', 400);
     }
 

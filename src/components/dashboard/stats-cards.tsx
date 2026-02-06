@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CheckCircle2,
@@ -47,7 +47,9 @@ export function StatsCards() {
       icon: FileText,
       description: "Requerimientos registrados",
       color: "text-blue-600 dark:text-blue-400",
-      bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      bgColor: "bg-blue-50 dark:bg-blue-950/40",
+      iconBg: "bg-blue-100 dark:bg-blue-900/50",
+      borderColor: "border-l-blue-500",
     },
     {
       title: "Pendientes de Aprobación",
@@ -55,7 +57,9 @@ export function StatsCards() {
       icon: Clock,
       description: "Esperando validación",
       color: "text-amber-600 dark:text-amber-400",
-      bgColor: "bg-amber-100 dark:bg-amber-900/30",
+      bgColor: "bg-amber-50 dark:bg-amber-950/40",
+      iconBg: "bg-amber-100 dark:bg-amber-900/50",
+      borderColor: "border-l-amber-500",
     },
     {
       title: "En Tránsito",
@@ -63,7 +67,9 @@ export function StatsCards() {
       icon: Truck,
       description: "En camino a destino",
       color: "text-purple-600 dark:text-purple-400",
-      bgColor: "bg-purple-100 dark:bg-purple-900/30",
+      bgColor: "bg-purple-50 dark:bg-purple-950/40",
+      iconBg: "bg-purple-100 dark:bg-purple-900/50",
+      borderColor: "border-l-purple-500",
     },
     {
       title: "Completados",
@@ -71,7 +77,9 @@ export function StatsCards() {
       icon: CheckCircle2,
       description: "Entregados este mes",
       color: "text-green-600 dark:text-green-400",
-      bgColor: "bg-green-100 dark:bg-green-900/30",
+      bgColor: "bg-green-50 dark:bg-green-950/40",
+      iconBg: "bg-green-100 dark:bg-green-900/50",
+      borderColor: "border-l-green-500",
     },
   ];
 
@@ -79,14 +87,16 @@ export function StatsCards() {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-8 w-8 rounded-lg" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-12 mb-2" />
-              <Skeleton className="h-3 w-32" />
+          <Card key={i} className="border-l-4 border-l-muted">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <div className="space-y-3">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-9 w-14" />
+                  <Skeleton className="h-3 w-36" />
+                </div>
+                <Skeleton className="h-11 w-11 rounded-xl" />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -97,20 +107,25 @@ export function StatsCards() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {statItems.map((stat) => (
-        <Card key={stat.title}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              {stat.title}
-            </CardTitle>
-            <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+        <Card
+          key={stat.title}
+          className={`border-l-4 ${stat.borderColor} hover:shadow-md transition-all duration-200 group`}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  {stat.title}
+                </p>
+                <p className="text-3xl font-bold tracking-tight">{stat.value}</p>
+                <p className="text-xs text-muted-foreground">
+                  {stat.description}
+                </p>
+              </div>
+              <div className={`p-2.5 rounded-xl ${stat.iconBg} group-hover:scale-110 transition-transform duration-200`}>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stat.value}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stat.description}
-            </p>
           </CardContent>
         </Card>
       ))}
